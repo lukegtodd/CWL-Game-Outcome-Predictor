@@ -1,0 +1,49 @@
+---
+title: "Final Project"
+author: "Luke Todd"
+date: "4/4/2022"
+output: html_document
+---
+
+### Step 1: Load packages
+```{r setup, include=FALSE}
+
+knitr::opts_chunk$set(echo = TRUE)
+
+library(readr)
+library(tidyverse)
+library(tidymodels)
+
+```
+
+### Step 2: Import raw data into R from Github
+```{r}
+
+# INFINITE WARFARE
+champs2017 <- read_csv(url("https://raw.githubusercontent.com/Activision/cwl-data/master/data/data-2017-08-13-champs.csv"))
+
+
+# WORLD WAR II
+dallas2018 <- read_csv(url("https://raw.githubusercontent.com/Activision/cwl-data/master/data/data-2017-12-10-dallas.csv"))
+neworleans2018 <- read_csv(url("https://raw.githubusercontent.com/Activision/cwl-data/master/data/data-2018-01-14-neworleans.csv"))
+proleagueStageOne2018 <- read_csv(url("https://raw.githubusercontent.com/Activision/cwl-data/master/data/data-2018-04-08-proleague1.csv"))
+atlanta2018 <- read_csv(url("https://raw.githubusercontent.com/Activision/cwl-data/master/data/data-2018-03-11-atlanta.csv"))
+birmingham2018 <- read_csv(url("https://raw.githubusercontent.com/Activision/cwl-data/master/data/data-2018-04-01-birmingham.csv"))
+proleagueRelegation2018 <- read_csv(url("https://raw.githubusercontent.com/Activision/cwl-data/master/data/data-2018-04-19-relegation.csv"))
+seattle2018 <- read_csv(url("https://raw.githubusercontent.com/Activision/cwl-data/master/data/data-2018-04-22-seattle.csv"))
+anaheim2018 <- read_csv(url("https://raw.githubusercontent.com/Activision/cwl-data/master/data/data-2018-06-17-anaheim.csv"))
+proleagueStageTwo2018 <- read_csv(url("https://raw.githubusercontent.com/Activision/cwl-data/master/data/data-2018-07-29-proleague2.csv"))
+champs2018 <- read_csv(url("https://raw.githubusercontent.com/Activision/cwl-data/master/data/data-2018-08-19-champs.csv"))
+
+
+# BLACK OPS 4
+proleagueQual2019 <- read_csv(url("https://raw.githubusercontent.com/Activision/cwl-data/master/data/data-2019-01-20-proleague-qual.csv"))
+proleague2019 <- read_csv(url("https://raw.githubusercontent.com/Activision/cwl-data/master/data/data-2019-07-05-proleague.csv"))
+fortworth2019 <- read_csv(url("https://raw.githubusercontent.com/Activision/cwl-data/master/data/data-2019-03-17-fortworth.csv"))
+london2019 <- read_csv(url("https://raw.githubusercontent.com/Activision/cwl-data/master/data/data-2019-05-05-london.csv"))
+anaheim2019 <- read_csv(url("https://raw.githubusercontent.com/Activision/cwl-data/master/data/data-2019-06-16-anaheim.csv"))
+proleagueFinals2019 <- read_csv(url("https://raw.githubusercontent.com/Activision/cwl-data/master/data/data-2019-07-21-proleague-finals.csv"))
+champs2019 <- read_csv(url("https://raw.githubusercontent.com/Activision/cwl-data/master/data/data-2019-08-18-champs.csv"))
+
+```
+
