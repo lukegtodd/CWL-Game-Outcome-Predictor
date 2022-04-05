@@ -14,6 +14,7 @@ library(readr)
 library(tidyverse)
 library(tidymodels)
 library(janitor)
+library(sqldf)
 
 ```
 
@@ -102,7 +103,20 @@ In order to assign an overall score to each individual player, we will need to a
 
 ### Attempt 1: Work with champs2017 data
 
-```{r}
+```{r, fig.height = 25, fig.width = 5}
+
+# whole event data, organized
+champs2017 <- champs2017[order(champs2017$player),] # organizes all the players in alphabetical order
+
+# two sample player k_d card
+accuracy_champs2017 <- sqldf('SELECT player, k_d FROM champs2017 WHERE player == "Accuracy"')
+attach_champs2017 <- sqldf('SELECT player, k_d FROM champs2017 WHERE player == "Attach"')
+
+# all player k_d card
+allPlayers_champs2017 <- sqldf('SELECT player, k_d FROM champs2017')
+
+# sample boxplot comparing the KD of each player that played in the event
+ggplot(test, aes(x = player, y = k_d)) + geom_boxplot() + coord_flip()
 
 ```
 
