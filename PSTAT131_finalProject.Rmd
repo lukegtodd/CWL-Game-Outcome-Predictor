@@ -6,18 +6,19 @@ output: html_document
 ---
 
 ### Step 1: Load packages
-```{r setup, include=FALSE}
+```{r setup, include=FALSE, message = FALSE}
 
 knitr::opts_chunk$set(echo = TRUE)
 
 library(readr)
 library(tidyverse)
 library(tidymodels)
+library(janitor)
 
 ```
 
 ### Step 2: Import raw data into R from Github
-```{r}
+```{r, error = FALSE, message = FALSE}
 
 # INFINITE WARFARE
 champs2017 <- read_csv(url("https://raw.githubusercontent.com/Activision/cwl-data/master/data/data-2017-08-13-champs.csv"))
@@ -46,4 +47,82 @@ proleagueFinals2019 <- read_csv(url("https://raw.githubusercontent.com/Activisio
 champs2019 <- read_csv(url("https://raw.githubusercontent.com/Activision/cwl-data/master/data/data-2019-08-18-champs.csv"))
 
 ```
+
+```{r}
+
+champs2017 <- champs2017 %>% clean_names(.)
+
+```
+
+
+
+### Step 3: Determine what data is valuable to us
+**What data are we concerned with?**
+In order to assign an overall score to each individual player, we will need to address Hardpoint, Search and Destroy, and the 3rd Gamemode separately. Once we have an individual score for each of the three gamemodes, we can use these to determine a final score.
+
+#### Infinite Warfare
+
+**Hardpoint:**
+1. player -- what player does the data correspond to  
+2. mode -- gamemode  
+3. win -- 'W' or 'L'; use to find overall player win/loss ratio  
+4. k_d -- kill/death ratio; used to show overall impact on the map  
+5. assists -- in addition to k/d, assists show overall support on the map; higher assists can indicate better team work  
+6. accuracy_percent -- player accuracy for each match  
+7. hill_time_s -- hill time measured in seconds  
+8. hill_captures -- shows activity on the map (MIGHT INCLUDE)  
+9. hill_defends -- shows activity on the map (MIGHT INCLUDE)  
+10. multikills -- x2_piece + x3_piece + x4_piece; multikills are often very influential in a match
+
+**Search and Destroy:**
+1. player -- what player does the data correspond to  
+2. mode -- gamemode  
+3. win -- 'W' or 'L'; use to find overall player win/loss ratio  
+4. k_d -- kill/death ratio; used to show overall impact on the map  
+5. assists -- in addition to k/d, assists show overall support on the map; higher assists can indicate better team work  
+6. accuracy_percent -- player accuracy for each match  
+7. fb_round_ratio -- 'snd_firstbloods'/'snd_rounds' (NOT INCLUDED IN BASE DATA SET)  
+8. bomb_sneak_defuses -- sneak defuses are often in pivotal rounds  
+9. bomb_plants -- good indicator of role (MIGHT INCLUDE)  
+10. bomb_defuses -- good indicator of role (MIGHT INCLUDE)  
+11. multikills -- x2_piece + x3_piece + x4_piece; multikills are often very influential in a match
+
+**Uplink:**
+1. player -- what player does the data correspond to  
+2. mode -- gamemode  
+3. win -- 'W' or 'L'; use to find overall player win/loss ratio  
+4. k_d -- kill/death ratio; used to show overall impact on the map  
+5. assists -- in addition to k/d, assists show overall support on the map; higher assists can indicate better team work  
+6. accuracy_percent -- player accuracy for each match  
+7. uplink_dunks --  shows activity on the map (might include)  
+8. uplink_throws --  shows activity on the map (might include)  
+9. uplink_points --  shows activity on the map  
+10. multikills -- x2_piece + x3_piece + x4_piece; multikills are often very influential in a match  
+
+
+### Attempt 1: Work with champs2017 data
+
+```{r}
+
+```
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
