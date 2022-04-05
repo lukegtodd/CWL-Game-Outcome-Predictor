@@ -101,22 +101,49 @@ In order to assign an overall score to each individual player, we will need to a
 10. multikills -- x2_piece + x3_piece + x4_piece; multikills are often very influential in a match  
 
 
-### Attempt 1: Work with champs2017 data
+### Attempt 1: Work with champs2017 data; EDA
 
+#### Organize data into work-able datasets
 ```{r, fig.height = 25, fig.width = 5}
 
-# whole event data, organized
-champs2017 <- champs2017[order(champs2017$player),] # organizes all the players in alphabetical order
+# whole event data, all players and all maps, where player names are organized alphabetically 
+champs2017 <- champs2017[order(champs2017$player),]
 
 # two sample player k_d card
 accuracy_champs2017 <- sqldf('SELECT player, k_d FROM champs2017 WHERE player == "Accuracy"')
 attach_champs2017 <- sqldf('SELECT player, k_d FROM champs2017 WHERE player == "Attach"')
 
 # all player k_d card
-allPlayers_champs2017 <- sqldf('SELECT player, k_d FROM champs2017')
+allKD_champs2017 <- sqldf('SELECT player, k_d FROM champs2017')
 
-# sample boxplot comparing the KD of each player that played in the event
-ggplot(test, aes(x = player, y = k_d)) + geom_boxplot() + coord_flip()
+# all necessary player data for Hardpoint
+all_hp_champs2017 <- sqldf('SELECT player, win, k_d, assists, accuracy_percent, hill_time_s, hill_captures, hill_defends, multikills FROM champs2017 WHERE mode == "Hardpoint"')
+all_hp_champs2017 <- all_hp_champs2017[order(all_hp_champs2017$player),]
+all_hpKD_champs2017 <- sqldf('SELECT player, k_d FROM all_hp_champs2017')
+
+# all necessary player data for Search and Destroy
+all_snd_champs2017 <- sqldf('SELECT player, win, k_d, assists, accuracy_percent, bomb_sneak_defuses, bomb_plants, bomb_defuses, multikills, snd_rounds, snd_firstbloods FROM champs2017 WHERE mode == "Search & Destroy"')
+all_snd_champs2017 <- all_snd_champs2017[order(all_snd_champs2017$player),]
+all_sndKD_champs2017 <- sqldf('SELECT player, k_d FROM all_snd_champs2017')
+
+# all necessary player data for Uplink
+all_upl_champs2017 <- sqldf('SELECT player, win, k_d, assists, accuracy_percent, uplink_dunks, uplink_throws, uplink_points, multikills FROM champs2017 WHERE mode == "Uplink"')
+all_upl_champs2017 <- all_upl_champs2017[order(all_upl_champs2017$player),]
+
+```
+
+#### Try some basic plots:
+
+```{r, fig.height = 25, fig.width = 5}
+
+# boxplot comparing the KD (OVERALL) of each player that played in the event
+ggplot(allKD_champs2017, aes(x = reorder(player, k_d, na.rm = TRUE), y = k_d)) + geom_boxplot() + coord_flip() + labs(y = "Kill/death ratio", x = "Player", subtitle = "Player K/D's for COD Champs 2017 (Infinite Warfare), Descending")
+
+# boxplot comparing the KD (HARDPOINT) of each player that played in the event
+ggplot(all_hpKD_champs2017, aes(x = reorder(player, k_d, na.rm = TRUE), y = k_d)) + geom_boxplot() + coord_flip() + labs(y = "Kill/death ratio", x = "Player", subtitle = "Player K/D's in HP for COD Champs 2017 (Infinite Warfare), Descending")
+
+# boxplot comparing the KD (SND) of each player that played in the event
+ggplot(all_sndKD_champs2017, aes(x = reorder(player, k_d, na.rm = TRUE), y = k_d)) + geom_boxplot() + coord_flip() + labs(y = "Kill/death ratio", x = "Player", subtitle = "Player K/D's in SND for COD Champs 2017 (Infinite Warfare), Descending")
 
 ```
 
