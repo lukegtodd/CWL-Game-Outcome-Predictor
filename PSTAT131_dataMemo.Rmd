@@ -1,9 +1,36 @@
 ---
-title: "Final Project"
+title: "Final Project Data Memo"
 author: "Luke Todd"
 date: "4/4/2022"
 output: html_document
 ---
+
+# Final Project Data Memo
+
+## An overview of your dataset
+
+My data set includes player statistics from the Call of Duty World League (CWL). The CWL lasted for about four years, with 2017-2019 having public data available on Github. 2017 only includes the COD Champs tournament, which is the most important of the year. 2018 includes a larger list of tournaments including Dallas, New Orleans, and eight others. Lastly, 2019 includes a total of seven major tournaments. For each tournament in the data set, there is information about every player for every game and series that is played. These player statistics include kill/death ratio, win/loss, accuracy, objective time, assists, game mode, and much more. With this data set, my goal is to use machine learning and regression analysis to create an overall score rating (out of 100) for each player, and, if possible, use this information to try and predict which teams would be the winners of certain tournaments.   
+
+In order to create player ratings, I need to analyze each game mode that they play in these competitive Call of Duty tournaments; the usual line up is Hardpoint, Search and Destroy, and a third game mode, such as Uplink. By analyzing the statistics for each game mode, I can assign a rating for each player for each of these game modes. From there, I can take an average of the three ratings to create an overall player rating for each event. I would do this for each event and would then create an overall rating for each player across the three year period.
+
+Each mode would require a different amount of predictors because the amount of available data varies for each mode. In the work done below, there is a breakdown of the potential predictors for each game mode. In general, there seems to be about 10 useful predictors for each mode. Each tournament provides about 2000 total observations, with the number of observations per player depending on how far they make it in the given tournament. 
+
+The data set does have missing data, but luckily there is a strong record of everything that is missing. The missing data is often just a few series, which is small compared to the overall scale of the existing data. I plan to just ignore this missing data and just carry on with the analysis without it. If I find that this poses an issue, I will also see if I can manually record the data through VODs (recorded matches). 
+
+## An overview of your research questions  
+
+The variable I am interested in predicting is the overall rating of an individual player. I am also interested in predicted the overall winner of a tournament based on the overall rating of a team, by averaging the team's individual ratings. I believe that an overall player rating will best be predicted by using a regression approach, since it makes the most sense to rate them on a scale of 1-100. Again, the potentially useful predictors are listed below in more detail, respective to each game mode. The goal of my model is to mainly be descriptive, using pre-existing player statistics to describe their individual performances. If I try to predict the winner of a given event, then I will be using predictive elements within my model.
+
+## Proposed project timeline  
+
+Below, I have already loaded all the data that was included the website I provided. This is all the available data for this subject, so this is what I will be moving forward with, assuming my project idea is approved. I have also begun to work on my exploratory data analysis with some super rough boxplots; however, I plan to tidy these up and make a more significant amount of progress over weeks 2-4 of the quarter. During weeks 2-4, I also plan to finish up my introduction and finish those "easier" parts of the assignment. During weeks 5-7, I plan to work on my regression and finish up my player ratings. During the last part of the quarter, I will leave myself time to make any adjustments that I find necessary and reach out for help if I am really struggling. In all honesty, this project has been a blast so far, and I will likely work way ahead of schedule because I find my topic so interesting and entertaining. 
+
+## Questions and concerns  
+
+Currently, I have no questions about the project, but if I run into any issues, I will be sure to ask in section or in office hours!
+
+
+# Beginning of my data work
 
 ### Step 1: Load packages
 ```{r setup, include=FALSE, message = FALSE}
@@ -59,11 +86,12 @@ champs2017 <- champs2017 %>% clean_names(.)
 
 ### Step 3: Determine what data is valuable to us
 **What data are we concerned with?**
-In order to assign an overall score to each individual player, we will need to address Hardpoint, Search and Destroy, and the 3rd Gamemode separately. Once we have an individual score for each of the three gamemodes, we can use these to determine a final score.
+In order to assign an overall score to each individual player, we will need to address Hardpoint, Search and Destroy, and the 3rd game mode separately. Once we have an individual score for each of the three game modes, we can use these to determine a final score.
 
-#### Infinite Warfare
+### Potentially Useful Predictor Variables
+#### Infinite Warfare (2017)
 
-**Hardpoint:**
+**Hardpoint:**  
 1. player -- what player does the data correspond to  
 2. mode -- gamemode  
 3. win -- 'W' or 'L'; use to find overall player win/loss ratio  
@@ -75,7 +103,7 @@ In order to assign an overall score to each individual player, we will need to a
 9. hill_defends -- shows activity on the map (MIGHT INCLUDE)  
 10. multikills -- x2_piece + x3_piece + x4_piece; multikills are often very influential in a match
 
-**Search and Destroy:**
+**Search and Destroy:**  
 1. player -- what player does the data correspond to  
 2. mode -- gamemode  
 3. win -- 'W' or 'L'; use to find overall player win/loss ratio  
@@ -88,7 +116,7 @@ In order to assign an overall score to each individual player, we will need to a
 10. bomb_defuses -- good indicator of role (MIGHT INCLUDE)  
 11. multikills -- x2_piece + x3_piece + x4_piece; multikills are often very influential in a match
 
-**Uplink:**
+**Uplink:**  
 1. player -- what player does the data correspond to  
 2. mode -- gamemode  
 3. win -- 'W' or 'L'; use to find overall player win/loss ratio  
@@ -104,7 +132,7 @@ In order to assign an overall score to each individual player, we will need to a
 ### Attempt 1: Work with champs2017 data; EDA
 
 #### Organize data into work-able datasets
-```{r, fig.height = 25, fig.width = 5}
+```{r, fig.height = 25, fig.width = 10}
 
 # whole event data, all players and all maps, where player names are organized alphabetically 
 champs2017 <- champs2017[order(champs2017$player),]
@@ -135,7 +163,7 @@ all_uplKD_champs2017 <- sqldf('SELECT player, k_d FROM all_upl_champs2017')
 
 #### Try some basic plots:
 
-```{r, fig.height = 25, fig.width = 5}
+```{r, fig.height = 25, fig.width = 10}
 
 # boxplot comparing the KD (OVERALL) of each player that played in the event
 ggplot(allKD_champs2017, aes(x = reorder(player, k_d, na.rm = TRUE), y = k_d)) + geom_boxplot() + coord_flip() + labs(y = "Kill/death ratio", x = "Player", subtitle = "Player K/D's for COD Champs 2017 (Infinite Warfare), Descending")
@@ -148,25 +176,5 @@ ggplot(all_sndKD_champs2017, aes(x = reorder(player, k_d, na.rm = TRUE), y = k_d
 
 # boxplot comparing the KD (UPLINK) of each player that played in the event
 ggplot(all_uplKD_champs2017, aes(x = reorder(player, k_d, na.rm = TRUE), y = k_d)) + geom_boxplot() + coord_flip() + labs(y = "Kill/death ratio", x = "Player", subtitle = "Player K/D's in UPLINK for COD Champs 2017 (Infinite Warfare), Descending")
+
 ```
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
