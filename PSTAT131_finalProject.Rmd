@@ -5,7 +5,7 @@ date: "4/4/2022"
 output: html_document
 ---
 
-### Step 1: Load packages
+# Step 1: Load packages
 ```{r setup, include=FALSE, message = FALSE}
 
 knitr::opts_chunk$set(echo = TRUE)
@@ -15,17 +15,21 @@ library(tidyverse)
 library(tidymodels)
 library(janitor)
 library(sqldf)
+library(sjmisc)
 
 ```
 
-### Step 2: Import raw data into R from Github
+# Step 2: Import raw data into R from Github
+### Infinite Warfare (2017)
 ```{r, error = FALSE, message = FALSE}
 
-# INFINITE WARFARE
 champs2017 <- read_csv(url("https://raw.githubusercontent.com/Activision/cwl-data/master/data/data-2017-08-13-champs.csv"))
 
+```
 
-# WORLD WAR II
+### World War II (2018)
+```{r, error = FALSE, message = FALSE}
+
 dallas2018 <- read_csv(url("https://raw.githubusercontent.com/Activision/cwl-data/master/data/data-2017-12-10-dallas.csv"))
 neworleans2018 <- read_csv(url("https://raw.githubusercontent.com/Activision/cwl-data/master/data/data-2018-01-14-neworleans.csv"))
 proleagueStageOne2018 <- read_csv(url("https://raw.githubusercontent.com/Activision/cwl-data/master/data/data-2018-04-08-proleague1.csv"))
@@ -35,33 +39,40 @@ proleagueRelegation2018 <- read_csv(url("https://raw.githubusercontent.com/Activ
 seattle2018 <- read_csv(url("https://raw.githubusercontent.com/Activision/cwl-data/master/data/data-2018-04-22-seattle.csv"))
 anaheim2018 <- read_csv(url("https://raw.githubusercontent.com/Activision/cwl-data/master/data/data-2018-06-17-anaheim.csv"))
 proleagueStageTwo2018 <- read_csv(url("https://raw.githubusercontent.com/Activision/cwl-data/master/data/data-2018-07-29-proleague2.csv"))
+
+
+# all stats for all major tournaments (EXCEPT CHAMPS) in WWII (2018)
+allMajors2018 <- rbind(dallas2018, neworleans2018, proleagueStageOne2018, atlanta2018, birmingham2018, proleagueRelegation2018, seattle2018, anaheim2018, proleagueStageTwo2018)
+
+# champs will act as our test data; we will try and predict the winner
 champs2018 <- read_csv(url("https://raw.githubusercontent.com/Activision/cwl-data/master/data/data-2018-08-19-champs.csv"))
 
+```
 
-# BLACK OPS 4
+### Black Ops 4 (2019)
+```{r, error = FALSE, message = FALSE}
+
 proleagueQual2019 <- read_csv(url("https://raw.githubusercontent.com/Activision/cwl-data/master/data/data-2019-01-20-proleague-qual.csv"))
 proleague2019 <- read_csv(url("https://raw.githubusercontent.com/Activision/cwl-data/master/data/data-2019-07-05-proleague.csv"))
 fortworth2019 <- read_csv(url("https://raw.githubusercontent.com/Activision/cwl-data/master/data/data-2019-03-17-fortworth.csv"))
 london2019 <- read_csv(url("https://raw.githubusercontent.com/Activision/cwl-data/master/data/data-2019-05-05-london.csv"))
 anaheim2019 <- read_csv(url("https://raw.githubusercontent.com/Activision/cwl-data/master/data/data-2019-06-16-anaheim.csv"))
 proleagueFinals2019 <- read_csv(url("https://raw.githubusercontent.com/Activision/cwl-data/master/data/data-2019-07-21-proleague-finals.csv"))
+
+# all stats for all major tournaments (EXCEPT CHAMPS) in BO4 (2019)
+allMajors2019 <- rbind(proleague2019, fortworth2019, london2019, anaheim2019, proleagueFinals2019)
+
+# champs will act as our test data; we will try and predict the winner
 champs2019 <- read_csv(url("https://raw.githubusercontent.com/Activision/cwl-data/master/data/data-2019-08-18-champs.csv"))
 
 ```
 
-```{r}
 
-champs2017 <- champs2017 %>% clean_names(.)
-
-```
-
-
-
-### Step 3: Determine what data is valuable to us
+# Step 3: Determine what data is valuable to us
 **What data are we concerned with?**
 In order to assign an overall score to each individual player, we will need to address Hardpoint, Search and Destroy, and the 3rd Gamemode separately. Once we have an individual score for each of the three gamemodes, we can use these to determine a final score.
 
-#### Infinite Warfare
+### INFINITE WARFARE (2017)
 
 **Hardpoint:**
 1. player -- what player does the data correspond to  
@@ -74,6 +85,7 @@ In order to assign an overall score to each individual player, we will need to a
 8. hill_captures -- shows activity on the map (MIGHT INCLUDE)  
 9. hill_defends -- shows activity on the map (MIGHT INCLUDE)  
 10. multikills -- x2_piece + x3_piece + x4_piece; multikills are often very influential in a match
+11. match_id -- helpful for getting rid of missing data  
 
 **Search and Destroy:**
 1. player -- what player does the data correspond to  
@@ -87,6 +99,7 @@ In order to assign an overall score to each individual player, we will need to a
 9. bomb_plants -- good indicator of role (MIGHT INCLUDE)  
 10. bomb_defuses -- good indicator of role (MIGHT INCLUDE)  
 11. multikills -- x2_piece + x3_piece + x4_piece; multikills are often very influential in a match
+12. match_id -- helpful for getting rid of missing data  
 
 **Uplink:**
 1. player -- what player does the data correspond to  
@@ -98,13 +111,58 @@ In order to assign an overall score to each individual player, we will need to a
 7. uplink_dunks --  shows activity on the map (might include)  
 8. uplink_throws --  shows activity on the map (might include)  
 9. uplink_points --  shows activity on the map  
-10. multikills -- x2_piece + x3_piece + x4_piece; multikills are often very influential in a match  
+10. multikills -- x2_piece + x3_piece + x4_piece; multikills are often very influential in a match
+11. match_id -- helpful for getting rid of missing data  
+
+---
+
+### WWII (2018)
+
+**Hardpoint:**
+1. player -- what player does the data correspond to  
+2. mode -- gamemode  
+3. win -- 'W' or 'L'; use to find overall player win/loss ratio  
+4. k_d -- kill/death ratio; used to show overall impact on the map  
+5. assists -- in addition to k/d, assists show overall support on the map; higher assists can indicate better team work  
+6. accuracy_percent -- player accuracy for each match  
+7. hill_time_s -- hill time measured in seconds  
+8. hill_captures -- shows activity on the map (MIGHT INCLUDE)  
+9. hill_defends -- shows activity on the map (MIGHT INCLUDE)  
+10. match_id -- helpful for getting rid of missing data  
+
+**Search and Destroy:**
+1. player -- what player does the data correspond to  
+2. mode -- gamemode  
+3. win -- 'W' or 'L'; use to find overall player win/loss ratio  
+4. k_d -- kill/death ratio; used to show overall impact on the map  
+5. assists -- in addition to k/d, assists show overall support on the map; higher assists can indicate better team work  
+6. accuracy_percent -- player accuracy for each match  
+7. fb_round_ratio -- 'snd_firstbloods'/'snd_rounds' (NOT INCLUDED IN BASE DATA SET)  
+8. bomb_sneak_defuses -- sneak defuses are often in pivotal rounds  
+9. bomb_plants -- good indicator of role (MIGHT INCLUDE)  
+10. bomb_defuses -- good indicator of role (MIGHT INCLUDE)  
+11. match_id -- helpful for getting rid of missing data  
+
+**Capture the Flag:**
+1. player -- what player does the data correspond to  
+2. mode -- gamemode  
+3. win -- 'W' or 'L'; use to find overall player win/loss ratio  
+4. k_d -- kill/death ratio; used to show overall impact on the map  
+5. assists -- in addition to k/d, assists show overall support on the map; higher assists can indicate better team work  
+6. accuracy_percent -- player accuracy for each match  
+7. ctf_captures -- number of flags captured in the game; higher the better
+8. ctf_returns -- number of flags returned in the game; higher the better
+9. ctf_pickups -- number of flags picked up in the game; higher the better  
+10. match_id -- helpful for getting rid of missing data  
 
 
-### Attempt 1: Work with champs2017 data; EDA
 
-#### Organize data into work-able datasets
+## EDA for Infinite Warfare: Work with champs2017 data (only data for that year)
+
+### Organize data into work-able datasets
 ```{r, fig.height = 25, fig.width = 5}
+
+champs2017 <- champs2017 %>% clean_names(.)
 
 # whole event data, all players and all maps, where player names are organized alphabetically 
 champs2017 <- champs2017[order(champs2017$player),]
@@ -133,8 +191,7 @@ all_uplKD_champs2017 <- sqldf('SELECT player, k_d FROM all_upl_champs2017')
 
 ```
 
-#### Try some basic plots:
-
+### Try some basic plots: total KD, hp KD, snd KD, uplink KD
 ```{r, fig.height = 25, fig.width = 5}
 
 # boxplot comparing the KD (OVERALL) of each player that played in the event
@@ -148,6 +205,71 @@ ggplot(all_sndKD_champs2017, aes(x = reorder(player, k_d, na.rm = TRUE), y = k_d
 
 # boxplot comparing the KD (UPLINK) of each player that played in the event
 ggplot(all_uplKD_champs2017, aes(x = reorder(player, k_d, na.rm = TRUE), y = k_d)) + geom_boxplot() + coord_flip() + labs(y = "Kill/death ratio", x = "Player", subtitle = "Player K/D's in UPLINK for COD Champs 2017 (Infinite Warfare), Descending")
+```
+
+## EDA for WWII: All season except champs
+
+### Organizing and cleaning raw data
+```{r}
+
+# LOADING
+dallas2018 <- read_csv(url("https://raw.githubusercontent.com/Activision/cwl-data/master/data/data-2017-12-10-dallas.csv"))
+neworleans2018 <- read_csv(url("https://raw.githubusercontent.com/Activision/cwl-data/master/data/data-2018-01-14-neworleans.csv"))
+proleagueStageOne2018 <- read_csv(url("https://raw.githubusercontent.com/Activision/cwl-data/master/data/data-2018-04-08-proleague1.csv"))
+atlanta2018 <- read_csv(url("https://raw.githubusercontent.com/Activision/cwl-data/master/data/data-2018-03-11-atlanta.csv"))
+birmingham2018 <- read_csv(url("https://raw.githubusercontent.com/Activision/cwl-data/master/data/data-2018-04-01-birmingham.csv"))
+proleagueRelegation2018 <- read_csv(url("https://raw.githubusercontent.com/Activision/cwl-data/master/data/data-2018-04-19-relegation.csv"))
+seattle2018 <- read_csv(url("https://raw.githubusercontent.com/Activision/cwl-data/master/data/data-2018-04-22-seattle.csv"))
+anaheim2018 <- read_csv(url("https://raw.githubusercontent.com/Activision/cwl-data/master/data/data-2018-06-17-anaheim.csv"))
+proleagueStageTwo2018 <- read_csv(url("https://raw.githubusercontent.com/Activision/cwl-data/master/data/data-2018-07-29-proleague2.csv"))
+
+
+# all stats for all major tournaments (EXCEPT CHAMPS) in WWII (2018)
+allMajors2018 <- rbind(dallas2018, neworleans2018, proleagueStageOne2018, atlanta2018, birmingham2018, proleagueRelegation2018, seattle2018, anaheim2018, proleagueStageTwo2018)
+
+# champs will act as our test data; we will try and predict the winner
+champs2018 <- read_csv(url("https://raw.githubusercontent.com/Activision/cwl-data/master/data/data-2018-08-19-champs.csv"))
+
+
+# CLEANING
+allMajors2018 <- allMajors2018 %>% clean_names(.)
+
+# new dataset that contains all of the missing data, just in case
+allMajors2018_missing <- sqldf('SELECT * FROM allMajors2018 WHERE match_id LIKE "missing%"')
+
+# whole event data, all players and all maps, where player names are organized alphabetically
+allMajors2018 <- allMajors2018[order(allMajors2018$player),]
+# removes missing values
+allMajors2018 <- sqldf('SELECT * FROM allMajors2018 WHERE match_id NOT LIKE "missing%"')
+# calculates all the players that have played more than 20 games
+playerNumGames <- count(allMajors2018, player) %>% subset(., n > 20) %>% remove_cols(n)
+
+# final subset: includes all existing data for all players that have played more than 20 games (arbitrary number)
+allMajors2018 <- sqldf('SELECT * FROM allMajors2018 WHERE player IN playerNumGames')
+
+
+
+# all 2018 hardpoint data
+all_hp_2018 <- sqldf('SELECT player, win, k_d, assists, accuracy_percent, hill_time_s, hill_captures, hill_defends FROM allMajors2018 WHERE mode == "Hardpoint"')
+all_hp_2018 <- all_hp_2018[order(all_hp_2018$player),]
+
+
+# all 2018 SND data
+all_snd_2018 <- sqldf('SELECT player, match_id, win, k_d, assists, accuracy_percent, bomb_sneak_defuses, bomb_plants, bomb_defuses, snd_rounds, snd_firstbloods FROM allMajors2018 WHERE mode == "Search & Destroy"')
+all_snd_2018 <- add_column(all_snd_2018, fb_round_ratio = all_snd_2018$snd_firstbloods/all_snd_2018$snd_rounds)
+all_snd_2018 <- all_snd_2018[order(all_snd_2018$player),]
+
+
+# all 2018 CTF data
+all_ctf_2018 <- sqldf('SELECT player, win, k_d, assists, accuracy_percent, ctf_captures, ctf_returns, ctf_pickups FROM allMajors2018 WHERE mode == "Capture The Flag"')
+
+```
+
+### Some basic plots: KD for season
+```{r, fig.height = 25, fig.width = 5}
+
+ggplot(allMajors2018, aes(x = reorder(player, k_d, na.rm = TRUE), y = k_d)) + geom_boxplot() + coord_flip() + labs(y = "Kill/death ratio", x = "Player", subtitle = "Player K/D's for CWL 2018 Season (WWII), Descending")
+
 ```
 
 
