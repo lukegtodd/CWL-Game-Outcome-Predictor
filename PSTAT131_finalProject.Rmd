@@ -1,5 +1,5 @@
 ---
-title: "Final Project"
+title: "PSTAT 131 Final Project"
 author: "Luke Todd"
 date: "4/4/2022"
 output: 
@@ -7,10 +7,61 @@ output:
    code_folding: hide
 ---
 
-# Step 1: Load packages
 ```{r setup, include=FALSE, message = FALSE}
 
 knitr::opts_chunk$set(echo = TRUE)
+
+library(vembedr)
+
+```
+
+# Introduction
+
+The purpose of the project is to provide an easy, consumable form of skill rating for professional Call of Duty players. This could be used as a descriptive statistic, but it can also be used to guess the winner of the largest tournament of the year, Call of Duty Champs.
+
+--- 
+
+# What is the Call of Duty World League?
+
+Call of Duty is a first-person shooter that first began in 2003. Since then, it has become one of the largest multiplayer video game franchises to exist. During this time, a competitive scene for the game has gained traction. In 2016, the Call of Duty World League was born -- a sponsored league that hosts major tournaments throughout the year for the best players in the world to play in. In these events, these pros play three different game modes to decide the winner of a series. These game modes are Hardpoint, Search and Destroy, and then a third game mode that often changes yearly. For the data that we are covering, the third game mode is Control. All of the teams in the league consist of 5 players, and the series are Best of 5's.
+
+```{r}
+embed_url("https://www.youtube.com/watch?v=VQC0aZuGBFs&t=2740s")
+```
+
+---  
+
+# Game Modes in Circuit
+
+### Hardpoint
+In Hardpoint, the two teams must fight over a point on the map where every second they spend in this point, they gain one point. This point is called the "hardpoint." If two teams are in the hardpoint at the same time, then neither teams collects points. Every sixty seconds, the hardpoint changes locations on the map, so teams must make tactical decisions to be able to rotate across the map. The first team to 250 points wins the map.
+
+```{r}
+embed_url("https://www.youtube.com/watch?v=VQC0aZuGBFs&t=2740s") %>%
+  use_start_time(6*60 + 35)
+```
+
+### Search and Destroy
+In Search and Destroy, the two teams play rounds where each player only has one life; if you die, you are dead until the next round. The objective is to either kill the entire other team before the time limit, or if you are on offense, then you can plant the bomb. If the bomb detonates after 45 seconds, then you also win the round. The first team to win 6 rounds wins the map.
+
+```{r}
+embed_url("https://www.youtube.com/watch?v=VQC0aZuGBFs&t=2740s") %>%
+  use_start_time(18*60 + 39)
+```
+
+### Control 
+In Control, there is an offense team and a defense team. There are multiple rounds where each team switches off between offense and defense. Each team has 30 lives per round. The first time to win three rounds wins the map. The offensive team is trying to either capture two points on the map, or eliminate all 30 lives of the other team. The defensive team is trying to either defend the two points before the time rounds out, or eliminate all 30 lives of the other team. 
+
+```{r}
+embed_url("https://www.youtube.com/watch?v=VQC0aZuGBFs&t=2740s") %>%
+  use_start_time(45*60 + 40)
+```
+
+---  
+
+# Load Packages
+
+```{r, include=FALSE, message = FALSE}
 
 library(readr)
 library(tidyverse)
@@ -18,47 +69,20 @@ library(tidymodels)
 library(janitor)
 library(sqldf)
 library(sjmisc)
+library(vembedr)
+library(dplyr)
+library(plyr)
 
 ```
 
-# Step 2: Import raw data into R from Github
-### Infinite Warfare (2017)
+---  
+
+# Load Data
+
+This project makes use of official CWL data that is uploaded on Github. All data is organized relatively cleanly and all missing data is reported. 
+
 ```{r, error = FALSE, message = FALSE}
 
-champs2017 <- read_csv(url("https://raw.githubusercontent.com/Activision/cwl-data/master/data/data-2017-08-13-champs.csv"))
-
-```
-
----
-
-### World War II (2018)
-```{r, error = FALSE, message = FALSE}
-
-dallas2018 <- read_csv(url("https://raw.githubusercontent.com/Activision/cwl-data/master/data/data-2017-12-10-dallas.csv"))
-neworleans2018 <- read_csv(url("https://raw.githubusercontent.com/Activision/cwl-data/master/data/data-2018-01-14-neworleans.csv"))
-proleagueStageOne2018 <- read_csv(url("https://raw.githubusercontent.com/Activision/cwl-data/master/data/data-2018-04-08-proleague1.csv"))
-atlanta2018 <- read_csv(url("https://raw.githubusercontent.com/Activision/cwl-data/master/data/data-2018-03-11-atlanta.csv"))
-birmingham2018 <- read_csv(url("https://raw.githubusercontent.com/Activision/cwl-data/master/data/data-2018-04-01-birmingham.csv"))
-proleagueRelegation2018 <- read_csv(url("https://raw.githubusercontent.com/Activision/cwl-data/master/data/data-2018-04-19-relegation.csv"))
-seattle2018 <- read_csv(url("https://raw.githubusercontent.com/Activision/cwl-data/master/data/data-2018-04-22-seattle.csv"))
-anaheim2018 <- read_csv(url("https://raw.githubusercontent.com/Activision/cwl-data/master/data/data-2018-06-17-anaheim.csv"))
-proleagueStageTwo2018 <- read_csv(url("https://raw.githubusercontent.com/Activision/cwl-data/master/data/data-2018-07-29-proleague2.csv"))
-
-
-# all stats for all major tournaments (EXCEPT CHAMPS) in WWII (2018)
-allMajors2018 <- rbind(dallas2018, neworleans2018, proleagueStageOne2018, atlanta2018, birmingham2018, proleagueRelegation2018, seattle2018, anaheim2018, proleagueStageTwo2018)
-
-# champs will act as our test data; we will try and predict the winner
-champs2018 <- read_csv(url("https://raw.githubusercontent.com/Activision/cwl-data/master/data/data-2018-08-19-champs.csv"))
-
-```
-
----
-
-### Black Ops 4 (2019)
-```{r, error = FALSE, message = FALSE}
-
-proleagueQual2019 <- read_csv(url("https://raw.githubusercontent.com/Activision/cwl-data/master/data/data-2019-01-20-proleague-qual.csv"))
 proleague2019 <- read_csv(url("https://raw.githubusercontent.com/Activision/cwl-data/master/data/data-2019-07-05-proleague.csv"))
 fortworth2019 <- read_csv(url("https://raw.githubusercontent.com/Activision/cwl-data/master/data/data-2019-03-17-fortworth.csv"))
 london2019 <- read_csv(url("https://raw.githubusercontent.com/Activision/cwl-data/master/data/data-2019-05-05-london.csv"))
@@ -73,225 +97,139 @@ champs2019 <- read_csv(url("https://raw.githubusercontent.com/Activision/cwl-dat
 
 ```
 
+---  
 
-# Step 3: Determine what data is valuable to us
-**What data are we concerned with?**
-In order to assign an overall score to each individual player, we will need to address Hardpoint, Search and Destroy, and the 3rd Gamemode separately. Once we have an individual score for each of the three gamemodes, we can use these to determine a final score.
+# What data are we concerned with?
 
----
-
-### INFINITE WARFARE (2017)
+In order to assign an overall score to each individual player, we will need to address Hardpoint, Search and Destroy, and the Control separately. Once we have an individual score for each of the three game modes, we can use these to determine a final score.
 
 **Hardpoint:**
 1. player -- what player does the data correspond to  
-2. mode -- gamemode  
+2. mode -- game mode  
 3. win -- 'W' or 'L'; use to find overall player win/loss ratio  
 4. k_d -- kill/death ratio; used to show overall impact on the map  
 5. assists -- in addition to k/d, assists show overall support on the map; higher assists can indicate better team work  
 6. accuracy_percent -- player accuracy for each match  
-7. hill_time_s -- hill time measured in seconds  
-8. hill_captures -- shows activity on the map (MIGHT INCLUDE)  
-9. hill_defends -- shows activity on the map (MIGHT INCLUDE)  
-10. multikills -- x2_piece + x3_piece + x4_piece; multikills are often very influential in a match  
-11. match_id -- helpful for getting rid of missing data  
-
-**Search and Destroy:**
-1. player -- what player does the data correspond to  
-2. mode -- gamemode  
-3. win -- 'W' or 'L'; use to find overall player win/loss ratio  
-4. k_d -- kill/death ratio; used to show overall impact on the map  
-5. assists -- in addition to k/d, assists show overall support on the map; higher assists can indicate better team work  
-6. accuracy_percent -- player accuracy for each match  
-7. fb_round_ratio -- 'snd_firstbloods'/'snd_rounds' (NOT INCLUDED IN BASE DATA SET)  
-8. bomb_sneak_defuses -- sneak defuses are often in pivotal rounds  
-9. bomb_plants -- good indicator of role (MIGHT INCLUDE)  
-10. bomb_defuses -- good indicator of role (MIGHT INCLUDE)  
-11. multikills -- x2_piece + x3_piece + x4_piece; multikills are often very influential in a match  
+7. damage_dealt -- total damage done in the map  
+8. player_spm -- score per minute  
+9. hill_time_s -- hill time measured in seconds  
+10. hill_captures -- shows activity on the map (MIGHT INCLUDE)  
+11. hill_defends -- shows activity on the map (MIGHT INCLUDE)  
 12. match_id -- helpful for getting rid of missing data  
 
-**Uplink:**
-1. player -- what player does the data correspond to  
-2. mode -- gamemode  
-3. win -- 'W' or 'L'; use to find overall player win/loss ratio  
-4. k_d -- kill/death ratio; used to show overall impact on the map  
-5. assists -- in addition to k/d, assists show overall support on the map; higher assists can indicate better team work  
-6. accuracy_percent -- player accuracy for each match  
-7. uplink_dunks --  shows activity on the map (might include)  
-8. uplink_throws --  shows activity on the map (might include)  
-9. uplink_points --  shows activity on the map  
-10. multikills -- x2_piece + x3_piece + x4_piece; multikills are often very influential in a match  
-11. match_id -- helpful for getting rid of missing data  
-
----
-
-### WWII (2018)
-
-**Hardpoint:**
-1. player -- what player does the data correspond to  
-2. mode -- gamemode  
-3. win -- 'W' or 'L'; use to find overall player win/loss ratio  
-4. k_d -- kill/death ratio; used to show overall impact on the map  
-5. assists -- in addition to k/d, assists show overall support on the map; higher assists can indicate better team work  
-6. accuracy_percent -- player accuracy for each match  
-7. hill_time_s -- hill time measured in seconds  
-8. hill_captures -- shows activity on the map (MIGHT INCLUDE)  
-9. hill_defends -- shows activity on the map (MIGHT INCLUDE)  
-10. match_id -- helpful for getting rid of missing data  
-
 **Search and Destroy:**
 1. player -- what player does the data correspond to  
-2. mode -- gamemode  
+2. mode -- game mode  
 3. win -- 'W' or 'L'; use to find overall player win/loss ratio  
 4. k_d -- kill/death ratio; used to show overall impact on the map  
 5. assists -- in addition to k/d, assists show overall support on the map; higher assists can indicate better team work  
 6. accuracy_percent -- player accuracy for each match  
-7. fb_round_ratio -- 'snd_firstbloods'/'snd_rounds' (NOT INCLUDED IN BASE DATA SET)  
-8. bomb_sneak_defuses -- sneak defuses are often in pivotal rounds  
-9. bomb_plants -- good indicator of role (MIGHT INCLUDE)  
-10. bomb_defuses -- good indicator of role (MIGHT INCLUDE)  
-11. match_id -- helpful for getting rid of missing data  
+7. damage_dealt -- total damage done in the map  
+8. player_spm -- score per minute  
+9. fb_round_ratio -- 'snd_firstbloods'/'snd_rounds' (NOT INCLUDED IN BASE DATA SET)  
+10. bomb_sneak_defuses -- sneak defuses are often in pivotal rounds  
+11. bomb_plants -- good indicator of role (MIGHT INCLUDE)  
+12. bomb_defuses -- good indicator of role (MIGHT INCLUDE)  
+13. match_id -- helpful for getting rid of missing data
 
-**Capture the Flag:**
+**Control:**
 1. player -- what player does the data correspond to  
-2. mode -- gamemode  
+2. mode -- game mode  
 3. win -- 'W' or 'L'; use to find overall player win/loss ratio  
 4. k_d -- kill/death ratio; used to show overall impact on the map  
 5. assists -- in addition to k/d, assists show overall support on the map; higher assists can indicate better team work  
 6. accuracy_percent -- player accuracy for each match  
-7. ctf_captures -- number of flags captured in the game; higher the better
-8. ctf_returns -- number of flags returned in the game; higher the better
-9. ctf_pickups -- number of flags picked up in the game; higher the better  
-10. match_id -- helpful for getting rid of missing data  
+7. damage_dealt -- total damage done in the map  
+8. player_spm -- score per minute  
+9. match_id -- helpful for getting rid of missing data  
 
 ---
 
-### Black Ops 4 (2019)
+# Data Split
+In a typical data split, we would merge all the data into one large data set, and then split this set into 80% training and 20% test. However, for this project, we will use all major tournaments as the training data and then use COD Champs as the testing data. The data for all the majors consists of 12,630 observations. The data for COD Champs consists of 2,960 observations. This means that my 'split' is approximately a 81/19 split between train and test data.
 
----
-
-## EDA for INFINITE WARFARE: champs2017 data (only data for that year)
-
-### Organize data into work-able datasets
-```{r, fig.height = 25, fig.width = 5}
-
-champs2017 <- champs2017 %>% clean_names(.)
-
-# new dataset that contains all of the missing data, just in case
-champs2017_missing <- sqldf('SELECT * FROM champs2017 WHERE match_id LIKE "missing%"')
-
-# whole event data, all players and all maps, where player names are organized alphabetically
-champs2017 <- champs2017[order(champs2017$player),]
-# removes missing values
-champs2017 <- sqldf('SELECT * FROM champs2017 WHERE match_id NOT LIKE "missing%"')
-# calculates all the players that have played more than 20 games
-playerNumGames_champs2017 <- count(champs2017, player) %>% subset(., n > 10) %>% remove_cols(n)
-
-# final subset: includes all existing data for all players that have played more than 20 games (arbitrary number)
-champs2017 <- sqldf('SELECT * FROM champs2017 WHERE player IN playerNumGames_champs2017')
-
-
-
-# all player k_d card
-allKD_champs2017 <- sqldf('SELECT player, k_d FROM champs2017')
-
-# all necessary player data for Hardpoint
-all_hp_champs2017 <- sqldf('SELECT player, win, k_d, assists, accuracy_percent, hill_time_s, hill_captures, hill_defends, multikills FROM champs2017 WHERE mode == "Hardpoint"')
-all_hp_champs2017 <- all_hp_champs2017[order(all_hp_champs2017$player),]
-
-# all necessary player data for Search and Destroy
-all_snd_champs2017 <- sqldf('SELECT player, win, k_d, assists, accuracy_percent, bomb_sneak_defuses, bomb_plants, bomb_defuses, multikills, snd_rounds, snd_firstbloods FROM champs2017 WHERE mode == "Search & Destroy"')
-all_snd_champs2017 <- all_snd_champs2017[order(all_snd_champs2017$player),]
-
-# all necessary player data for Uplink
-all_upl_champs2017 <- sqldf('SELECT player, win, k_d, assists, accuracy_percent, uplink_dunks, uplink_throws, uplink_points, multikills FROM champs2017 WHERE mode == "Uplink"')
-all_upl_champs2017 <- all_upl_champs2017[order(all_upl_champs2017$player),]
+```{r}
 
 ```
 
-### Some basic plots: Overall KD, Hardpoint KD, Search and Destroy KD, Uplink KD
-```{r, fig.height = 25, fig.width = 9}
 
-# boxplot comparing the KD (OVERALL) of each player that played in the event
-ggplot(champs2017, aes(x = reorder(player, k_d, na.rm = TRUE), y = k_d)) + geom_boxplot() + coord_flip(ylim = c(0, 3.5)) + labs(y = "Kill/death ratio", x = "Player", subtitle = "Player K/D's for COD Champs 2017 (Infinite Warfare), Descending") 
+---  
 
-# boxplot comparing the KD (HARDPOINT) of each player that played in the event
-ggplot(all_hp_champs2017, aes(x = reorder(player, k_d, na.rm = TRUE), y = k_d)) + geom_boxplot() + coord_flip(ylim = c(0, 3.5)) + labs(y = "Kill/death ratio", x = "Player", subtitle = "Player K/D's in HP for COD Champs 2017 (Infinite Warfare), Descending")
+# Data Cleaning and Organization
 
-# boxplot comparing the KD (SND) of each player that played in the event
-ggplot(all_snd_champs2017, aes(x = reorder(player, k_d, na.rm = TRUE), y = k_d)) + geom_boxplot() + coord_flip(ylim = c(0, 6)) + labs(y = "Kill/death ratio", x = "Player", subtitle = "Player K/D's in SND for COD Champs 2017 (Infinite Warfare), Descending")
+The data below is for all of the majors throughout the season, except for COD Champs. We will reserve COD Champs to act as a test set. The raw data from each major is merged into one major dataset, further broken up into Hardpoint, SND, and Control datasets.  
 
-# boxplot comparing the KD (UPLINK) of each player that played in the event
-ggplot(all_upl_champs2017, aes(x = reorder(player, k_d, na.rm = TRUE), y = k_d)) + geom_boxplot() + coord_flip(ylim = c(0, 3.5)) + labs(y = "Kill/death ratio", x = "Player", subtitle = "Player K/D's in UPLINK for COD Champs 2017 (Infinite Warfare), Descending")
-```
-
----
-
-## EDA for WWII (2018): All season except champs
-
-### Organizing and cleaning raw data
+**All major data merged into one large dataset.**
 ```{r}
 
 # CLEANING
-allMajors2018 <- allMajors2018 %>% clean_names(.)
+allMajors2019 <- allMajors2019 %>% clean_names(.)
 
 # new dataset that contains all of the missing data, just in case
-allMajors2018_missing <- sqldf('SELECT * FROM allMajors2018 WHERE match_id LIKE "missing%"')
+allMajors2019_missing <- sqldf('SELECT * FROM allMajors2019 WHERE match_id LIKE "missing%"')
 
 # whole event data, all players and all maps, where player names are organized alphabetically
-allMajors2018 <- allMajors2018[order(allMajors2018$player),]
+allMajors2019 <- allMajors2019[order(allMajors2019$player),]
 
 # removes missing values
-allMajors2018 <- sqldf('SELECT * FROM allMajors2018 WHERE match_id NOT LIKE "missing%"')
+allMajors2019 <- sqldf('SELECT * FROM allMajors2019 WHERE match_id NOT LIKE "missing%"')
 
-# calculates all the players that have played more than 20 games
-playerNumGames <- count(allMajors2018, player) %>% subset(., n > 50) %>% remove_cols(n)
+# calculates all the players that have played more than 50 games
+playerNumGames <- count(allMajors2019, player) %>% subset(., n > 50) %>% remove_cols(n)
 
-# final subset: includes all existing data for all players that have played more than 20 games (arbitrary number)
-allMajors2018 <- sqldf('SELECT * FROM allMajors2018 WHERE player IN playerNumGames')
-
-
-
-
-
-# all 2018 hardpoint data
-all_hp_2018 <- sqldf('SELECT player, win, k_d, assists, accuracy_percent, hill_time_s, hill_captures, hill_defends FROM allMajors2018 WHERE mode == "Hardpoint"')
-all_hp_2018 <- all_hp_2018[order(all_hp_2018$player),]
-
-
-
-
-
-# all 2018 SND data
-all_snd_2018 <- sqldf('SELECT player, match_id, win, k_d, assists, accuracy_percent, bomb_sneak_defuses, bomb_plants, bomb_defuses, snd_rounds, snd_firstbloods FROM allMajors2018 WHERE mode == "Search & Destroy"')
-
-# adds new column with fb/round ratio
-all_snd_2018 <- add_column(all_snd_2018, fb_round_ratio = all_snd_2018$snd_firstbloods/all_snd_2018$snd_rounds)
-
-# adding a new column with average first bloods for the season
-all_snd_2018 <- all_snd_2018 %>%
-  group_by(player) %>%
-  mutate(fb_avg = mean(k_d))
-
-# puts data in alphabetical order
-all_snd_2018 <- all_snd_2018[order(all_snd_2018$player),]
-
-
-
-
-
-# all 2018 CTF data
-all_ctf_2018 <- sqldf('SELECT player, win, k_d, assists, accuracy_percent, ctf_captures, ctf_returns, ctf_pickups FROM allMajors2018 WHERE mode == "Capture The Flag"')
-all_ctf_2018 <- all_ctf_2018[order(all_ctf_2018$player),]
+# final subset: includes all existing data for all players that have played more than 50 games (arbitrary number)
+allMajors2019 <- sqldf('SELECT * FROM allMajors2019 WHERE player IN playerNumGames')
 
 ```
 
-### Some basic plots: KD for season
+**Hardpoint subset**
+```{r}
+
+# all 2019 hardpoint data
+all_hp_2019 <- sqldf('SELECT player, win, k_d, assists, accuracy_percent, damage_dealt, player_spm, hill_time_s, hill_captures, hill_defends FROM allMajors2019 WHERE mode == "Hardpoint"')
+all_hp_2019 <- all_hp_2019[order(all_hp_2019$player),]
+
+```
+
+**Search and Destroy subset**
+```{r}
+
+# all 2019 SND data
+all_snd_2019 <- sqldf('SELECT player, win, k_d, assists, accuracy_percent, damage_dealt, player_spm, bomb_sneak_defuses, bomb_plants, bomb_defuses, snd_rounds, snd_firstbloods FROM allMajors2019 WHERE mode == "Search & Destroy"')
+
+# adds new column with fb/round ratio
+all_snd_2019 <- add_column(all_snd_2019, fb_round_ratio = all_snd_2019$snd_firstbloods/all_snd_2019$snd_rounds)
+
+# adding a new column with average first bloods for the season
+all_snd_2019 <- all_snd_2019 %>%
+  group_by(player) %>%
+  mutate(fb_avg = mean(snd_firstbloods))
+
+# puts data in alphabetical order
+all_snd_2019 <- all_snd_2019[order(all_snd_2019$player),]
+
+```
+
+**Control subset**
+```{r}
+
+# all 2019 CONTROL data
+all_control_2019 <- sqldf('SELECT player, win, k_d, assists, accuracy_percent, damage_dealt, player_spm FROM allMajors2019 WHERE mode == "Control"')
+all_control_2019 <- all_control_2019[order(all_control_2019$player),]
+
+```
+
+---  
+
+# Exploratory Data Analysis
+
+### Some basic plots: Kill/death for season
 ```{r, fig.height = 25, fig.width = 9}
 
-ggplot(allMajors2018, aes(x = reorder(player, k_d), y = k_d)) + geom_boxplot() + coord_flip(ylim = c(0, 3.5)) + labs(y = "Kill/death ratio", x = "Player", subtitle = "OVERALL Player K/D', 2018 Season (WWII), Descending")
-ggplot(all_hp_2018, aes(x = reorder(player, k_d), y = k_d)) + geom_boxplot() + coord_flip(ylim = c(0, 3.5)) + labs(y = "Kill/death ratio", x = "Player", subtitle = "Player K/D's for HARDPOINT, 2018 Season (WWII), Descending")
-ggplot(all_snd_2018, aes(x = reorder(player, k_d), y = k_d)) + geom_boxplot() + coord_flip(ylim = c(0, 5)) + labs(y = "Kill/death ratio", x = "Player", subtitle = "Player K/D's for SEARCH AND DESTROY, 2018 Season (WWII), Descending")
-ggplot(all_ctf_2018, aes(x = reorder(player, k_d), y = k_d)) + geom_boxplot() + coord_flip(ylim = c(0, 3.5)) + labs(y = "Kill/death ratio", x = "Player", subtitle = "Player K/D's for CAPTURE THE FLAG, 2018 Season (WWII), Descending")
+ggplot(allMajors2019, aes(x = reorder(player, k_d), y = k_d)) + geom_boxplot() + coord_flip(ylim = c(0, 3.5)) + labs(y = "Kill/death ratio", x = "Player", subtitle = "OVERALL Player K/D's, 2019 Season (BO4), Descending")
+ggplot(all_hp_2019, aes(x = reorder(player, k_d), y = k_d)) + geom_boxplot() + coord_flip(ylim = c(0, 3.5)) + labs(y = "Kill/death ratio", x = "Player", subtitle = "Player K/D's for HARDPOINT, 2019 Season (BO4), Descending")
+ggplot(all_snd_2019, aes(x = reorder(player, k_d), y = k_d)) + geom_boxplot() + coord_flip(ylim = c(0, 5)) + labs(y = "Kill/death ratio", x = "Player", subtitle = "Player K/D's for SEARCH AND DESTROY, 2019 Season (BO4), Descending")
+ggplot(all_control_2019, aes(x = reorder(player, k_d), y = k_d)) + geom_boxplot() + coord_flip(ylim = c(0, 3.5)) + labs(y = "Kill/death ratio", x = "Player", subtitle = "Player K/D's for CONTROL, 2019 Season (BO4), Descending")
 
 ```
 
@@ -302,38 +240,59 @@ Search and Destroy is a gamemode that has multiple rounds, where in each round, 
 
 ```{r, fig.height = 25, fig.width = 11}
 
-ggplot(all_snd_2018, aes(x = reorder(player, fb_avg), y = fb_avg)) + geom_boxplot() + coord_flip(ylim = c(0, 3)) + labs(y = "Firstblood Average", x = "Player", subtitle = "Player Firstblood Average for SEARCH AND DESTROY, 2018 Season (WWII), Descending")
+# player firstblood average for SND 2019
+
+ggplot(all_snd_2019, aes(x = reorder(player, fb_avg), y = fb_avg)) + geom_boxplot() + coord_flip(ylim = c(0, 3)) + labs(y = "Firstblood Average", x = "Player", subtitle = "Player Firstblood Average for SEARCH AND DESTROY, 2019 Season (BO4), Descending")
 
 ```
-The top 5 players with the highest average firstbloods were:  
-1. Xotic  
-2. Aqua  
-3. Dashy  
-4. Slasher  
-5. Skrapz  
 
 
 ```{r, fig.height = 25, fig.width = 9}
 
-ggplot(all_snd_2018, aes(x = reorder(player, snd_firstbloods), y = snd_firstbloods)) + geom_boxplot() + coord_flip(ylim = c(0, 8)) + labs(y = "Firstblood/round ratio", x = "Player", subtitle = "Player Firstbloods for SEARCH AND DESTROY, 2018 Season (WWII), Descending")
+# player firstbloods for SND 2019
+
+ggplot(all_snd_2019, aes(x = reorder(player, snd_firstbloods), y = snd_firstbloods)) + geom_boxplot() + coord_flip(ylim = c(0, 6)) + labs(y = "Firstbloods", x = "Player", subtitle = "Player Firstbloods for SEARCH AND DESTROY, 2019 Season (BO4), Descending")
 
 ```
-Firstbloods are incremental (by 1), which explains why all medians and outliers fall on an integer. The interesting part of this graph, to me, are the outliers. From looking at this plot, we can see that Blazt and Felony tied for most firstbloods in a game with 7 total firstbloods.  
 
 
 ```{r, fig.height = 25, fig.width = 11}
 
-ggplot(all_snd_2018, aes(x = reorder(player, fb_round_ratio), y = fb_round_ratio)) + geom_boxplot() + coord_flip(ylim = c(0, 0.8)) + labs(y = "Firstblood/round ratio", x = "Player", subtitle = "Player Firstblood/Round for SEARCH AND DESTROY, 2018 Season (WWII), Descending")
+# player firstblood/round for SND 2019
+
+ggplot(all_snd_2019, aes(x = reorder(player, fb_round_ratio), y = fb_round_ratio)) + geom_boxplot() + coord_flip(ylim = c(0, 0.6)) + labs(y = "Firstblood/round ratio", x = "Player", subtitle = "Player Firstblood/Round for SEARCH AND DESTROY, 2019 Season (BO4), Descending")
 
 ```
-The top 5 players with the highest firstblood/round ratio were:  
-1. Blazt  
-2. Fero  
-3. John  
-4. Zooma  
-5. Dashy  
 
+### Some basic plots: Overall damage dealt
 
+```{r, fig.height = 25, fig.width = 11}
+
+# player damage dealt OVERALL 2019
+
+ggplot(allMajors2019, aes(x = reorder(player, damage_dealt), y = damage_dealt)) + geom_boxplot() + coord_flip(ylim = c(0, 10000)) + labs(y = "Damage Dealt", x = "Player", subtitle = "OVERALL Player Damage Dealt, 2019 Season (BO4), Descending")
+
+```
+
+### Some basic plots: Overall Score/Min (spm)
+
+```{r, fig.height = 25, fig.width = 11}
+
+# Overall score per minute for 2019 season
+
+ggplot(allMajors2019, aes(x = reorder(player, player_spm), y = player_spm)) + geom_boxplot() + coord_flip(ylim = c(0, 675)) + labs(y = "Score per minute", x = "Player", subtitle = "OVERALL Player Score per minute, 2019 Season (BO4), Descending")
+
+```
+
+### Some basic plots: Number of wins
+
+```{r, fig.height = 25, fig.width = 11}
+
+# Overall number of wins for 2019 season
+
+ggplot(allMajors2019, aes(x = reorder(player, win), y = win)) + geom_bar() + coord_flip(ylim = c(0, 675)) + labs(y = "Number of wins", x = "Player", subtitle = "OVERALL Number of Wins, 2019 Season (BO4), Descending")
+
+```
 
 
 
