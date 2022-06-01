@@ -184,40 +184,25 @@ allMajors2019 <- sqldf('SELECT * FROM allMajors2019 WHERE damage_dealt != "0"')
 
 ```
 
+**Cleaning Champs2019 dataset**
+```{r}
+
+champs2019 <- champs2019 %>% clean_names(.)
+champs2019 <- champs2019[order(champs2019$player),]
+champs2019 <- sqldf('SELECT * FROM champs2019 WHERE match_id NOT LIKE "missing%"')
+champs2019 <- sqldf('SELECT * FROM champs2019 WHERE damage_dealt != "0"')
+
+```
+
+
 **Hardpoint subset**
 ```{r}
 
 # all 2019 hardpoint data
-all_hp_2019 <- sqldf('SELECT player, win, k_d, assists, damage_dealt, player_spm, hill_time_s, hill_captures, hill_defends FROM allMajors2019 WHERE mode == "Hardpoint"')
+all_hp_2019 <- sqldf('SELECT player, k_d, win, kills, deaths, x, assists, damage_dealt, player_spm, hill_time_s, hill_captures, hill_defends FROM allMajors2019 WHERE mode == "Hardpoint"')
 all_hp_2019 <- all_hp_2019[order(all_hp_2019$player),]
 
 ```
-
-```{r}
-
-all_hp_2019_mb <- all_hp_2019
-
-playerWinsHP <- sqldf('SELECT player, win FROM all_hp_2019_mb WHERE win == "W"') # selects all the wins for each player
-playerWinsHP <- playerWinsHP %>% count(player) # counts the number of wins per player
-
-all_hp_2019_mb <- all_hp_2019_mb %>%
-  group_by(player) %>%
-  mutate(avg_kd = mean(k_d)) %>%
-  mutate(avg_spm = mean(player_spm)) %>%
-  mutate(avg_assists = mean(assists)) %>%
-  mutate(avg_damagedealt = mean(damage_dealt)) %>%
-  mutate(avg_hilltime = mean(hill_time_s)) %>%
-  mutate(avg_captures = mean(hill_captures)) %>%
-  mutate(avg_defends = mean(hill_defends)) %>%
-  subset(., select = -c(k_d, assists, damage_dealt, hill_time_s, hill_captures, hill_defends, player_spm, win)) %>%
-  unique()
-
-# creates a final dataset for hardpoint where each player only has one row, which includes the averages of all of his statistics
-all_hp_2019_mb <- sqldf('SELECT * FROM all_hp_2019_mb INNER JOIN playerWinsHP ON all_hp_2019_mb.player = playerWinsHP.player')
-
-
-```
-
 
 **Search and Destroy subset**
 ```{r}
@@ -341,17 +326,230 @@ playerWins %>%
 
 The number of wins appears to follow a normal distribution. The left side of the histogram appears to be slightly more populated, but I hypothesize that this is due to players that didn't play for the whole season.
 
+
+
+
+
+
+
+----------------------------------------------------------------------------------------------------------
+**BREAK FROM EDA**
+
+
+
+
+
+
+### Find correlation between variables
+**I will begin by working with hardpoint data. In order to do this, I will need to compile each players' statistics into one column.** 
+
+**I will be working with a new dataset, just so I don't mess up the original dataset.**
 ```{r}
 
-# # Equivalent with a formula
-# pairs(win ~ k_d + player_spm + damage_dealt + assists + hill_time_s + hill_captures + hill_defends, data = all_hp_2019)
-
-mydata.cor = cor(all_hp_2019, method = c("spearman"))
-
-cor(mydata.cor)
-corrplot(mydata.cor)
+all_hp_2019_mb <- all_hp_2019
 
 ```
+
+**Number of wins for each player.**
+```{r}
+
+playerWinsHP <- sqldf('SELECT player, win FROM all_hp_2019_mb WHERE win == "W"') # selects all the wins for each player
+playerWinsHP <- playerWinsHP %>% count(player) # counts wins per players
+
+```
+
+**Attempting to use averages to predict win percentage of each player.**
+```{r}
+
+playerGamesPlayed <- sqldf('SELECT player, win FROM all_hp_2019_mb')
+playerGamesPlayed <- playerGamesPlayed %>% count(player) # calculates the number of games played per player
+
+playerWinRateHP <- merge(playerWinsHP, playerGamesPlayed, by = c("player")) %>%
+  mutate(winRate = n.x/n.y) %>%
+  subset(., select = -c(n.x, n.y))
+
+all_hp_2019_averages <- all_hp_2019_mb %>%
+  group_by(player) %>%
+  mutate(avg_kd = mean(k_d)) %>%
+  mutate(avg_spm = mean(player_spm)) %>%
+  mutate(avg_assists = mean(assists)) %>%
+  mutate(avg_damagedealt = mean(damage_dealt)) %>%
+  mutate(avg_hilltime = mean(hill_time_s)) %>%
+  mutate(avg_captures = mean(hill_captures)) %>%
+  mutate(avg_defends = mean(hill_defends)) %>%
+  subset(., select = -c(kills, deaths, x, k_d, assists, damage_dealt, hill_time_s, hill_captures, hill_defends, player_spm, win)) %>%
+  unique()
+
+# creates a final dataset for hardpoint where each player only has one row, which includes the averages of all of his statistics
+all_hp_2019_averages <- merge(playerWinRateHP, all_hp_2019_averages, by = c("player"))
+
+```
+
+**Attempting to use totals to predict number of wins of each player.**
+```{r}
+
+all_hp_2019_totals <- all_hp_2019_mb %>%
+  group_by(player) %>%
+  mutate(tot_kills = sum(kills)) %>%
+  mutate(tot_deaths = sum(deaths)) %>%
+  mutate(tot_x = sum(x)) %>%
+  mutate(tot_spm = sum(player_spm)) %>%
+  mutate(tot_assists = sum(assists)) %>%
+  mutate(tot_damagedealt = sum(damage_dealt)) %>%
+  mutate(tot_hilltime = sum(hill_time_s)) %>%
+  mutate(tot_captures = sum(hill_captures)) %>%
+  mutate(tot_defends = sum(hill_defends)) %>%
+  subset(., select = -c(k_d, kills, deaths, x, assists, damage_dealt, hill_time_s, hill_captures, hill_defends, player_spm, win)) %>%
+  unique()
+
+# creates a final dataset for hardpoint where each player only has one row, which includes the averages of all of his statistics
+all_hp_2019_totals <- merge(playerWinsHP, all_hp_2019_totals, by = c("player"))
+
+```
+
+### WORKING WITH AVERAGES / WIN RATE
+**Correlation plots and matrix for AVERAGES**
+```{r}
+
+pairs(winRate ~ avg_kd + avg_spm + avg_damagedealt + avg_assists + avg_hilltime + avg_captures + avg_defends, data = all_hp_2019_averages)
+
+corr_averages_hp_2019 <- all_hp_2019_averages %>%
+  subset(., select = -c(player))
+
+cor(corr_averages_hp_2019)
+
+```
+
+**Regression model for Hardpoint for AVERAGES**
+```{r}
+
+winRate <- lm(winRate ~ avg_kd + avg_spm + avg_assists + avg_damagedealt + avg_hilltime + avg_captures + avg_defends, data = all_hp_2019_averages)
+summary(wins)
+
+```
+
+**Relationship for AVERAGES**
+```{r}
+
+plot(all_hp_2019_averages$winRate, all_hp_2019_averages$avg_kd, xlab = "Win Rate", ylab = "Average K/D",
+     title("Relationship between Win Rate and K/D"))
+
+```
+
+
+### WORKING WITH TOTALS / NUM OF WINS
+
+**Correlation plots and matrix for TOTALS**
+```{r}
+
+# Equivalent with a formula
+pairs(n ~ tot_kills + tot_deaths + tot_spm + tot_assists + tot_damagedealt + tot_hilltime + tot_captures + tot_defends, data = all_hp_2019_totals)
+
+corr_totals_hp_2019 <- all_hp_2019_totals %>%
+  subset(., select = -c(player))
+
+cor(corr_totals_hp_2019)
+
+```
+
+**Relationship for TOTALS**
+```{r}
+
+plot(all_hp_2019_totals$n, all_hp_2019_totals$tot_x, xlab = "Number of Wins", ylab = "Total Kills - Total Deaths",
+     title("Relationship between Number of Wins and Kill and Death Discrepancy"))
+
+```
+
+**Regression model for Hardpoint for TOTALS**
+```{r}
+
+winsTotal <- lm(n ~ tot_kills + tot_deaths + tot_spm + tot_assists + tot_damagedealt + tot_hilltime + tot_captures + tot_defends, data = all_hp_2019_totals)
+summary(wins)
+
+```
+
+
+
+
+
+
+------------------------------------------------------------------------
+**Now let's try a different approach, essentially from scratch. Let's try to predict a win (YES) or a loss (NO) using a player's data. DECISION TREE METHOD** Most likely, I should do this by gamemode. Otherwise, certain columns will be empty since some of the data is not releveant in different gamemodes.
+
+```{r}
+
+all_hp_2019_wl <- all_hp_2019
+
+# changes W to 1, L to 0
+# all_hp_2019_wl$win <- ifelse(all_hp_2019_wl$win == "W", 1, 0) %>%
+#   as.factor()
+
+all_hp_2019_wl$win <- as.factor(all_hp_2019_wl$win)
+
+head(all_hp_2019_wl)
+
+dim(all_hp_2019_wl)
+
+```
+
+```{r}
+
+prop.table(table(all_hp_2019_wl$win))
+
+```
+
+```{r}
+
+# install.packages("rpart.plot")
+library(rpart)
+library(rpart.plot)
+
+```
+
+```{r}
+
+fit <- rpart(win ~ k_d + assists + damage_dealt + player_spm + hill_time_s + hill_captures + hill_defends, data = all_hp_2019_wl, method = 'class')
+
+rpart.plot(fit, extra = 106)
+
+```
+
+```{r}
+
+predict_unseen <- predict(fit, champs2019, type = 'class')
+
+table_mat <- table(champs2019$win, predict_unseen)
+table_mat
+
+```
+
+The model correctly predicted 1168 losses, but predicted 311 losses as wins. In addition, the model correctly predicted 1024 wins, but predicted 456 wins as losses.
+
+```{r}
+
+accuracy_test <- sum(diag(table_mat)) / sum(table_mat)
+print(paste('Accuracy for test', accuracy_test))
+
+```
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
