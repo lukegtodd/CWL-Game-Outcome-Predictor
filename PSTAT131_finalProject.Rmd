@@ -70,8 +70,6 @@ library(janitor)
 library(sqldf)
 library(sjmisc)
 library(vembedr)
-library(dplyr)
-library(plyr)
 
 ```
 
@@ -148,11 +146,6 @@ In order to assign an overall score to each individual player, we will need to a
 # Data Split
 In a typical data split, we would merge all the data into one large data set, and then split this set into 80% training and 20% test. However, for this project, we will use all major tournaments as the training data and then use COD Champs as the testing data. The data for all the majors consists of 12,630 observations. The data for COD Champs consists of 2,960 observations. This means that my 'split' is approximately a 81/19 split between train and test data.
 
-```{r}
-
-```
-
-
 ---  
 
 # Data Cleaning and Organization
@@ -177,8 +170,17 @@ allMajors2019 <- sqldf('SELECT * FROM allMajors2019 WHERE match_id NOT LIKE "mis
 # calculates all the players that have played more than 50 games
 playerNumGames <- count(allMajors2019, player) %>% subset(., n > 50) %>% remove_cols(n)
 
-# final subset: includes all existing data for all players that have played more than 50 games (arbitrary number)
+# includes all existing data for all players that have played more than 50 games (arbitrary number)
 allMajors2019 <- sqldf('SELECT * FROM allMajors2019 WHERE player IN playerNumGames')
+
+# removes all matches where damage = 0; almost always occurs as a result of data loss
+allMajors2019 <- sqldf('SELECT * FROM allMajors2019 WHERE damage_dealt != "0"')
+
+# # converts win to numeric where 1 is Loss and 2 is Win
+# allMajors2019$win <- factor(allMajors2019$win, levels = as.character(unique(allMajors2019$win)))
+# allMajors2019$win <- as.numeric(allMajors2019$win)
+
+
 
 ```
 
@@ -186,16 +188,42 @@ allMajors2019 <- sqldf('SELECT * FROM allMajors2019 WHERE player IN playerNumGam
 ```{r}
 
 # all 2019 hardpoint data
-all_hp_2019 <- sqldf('SELECT player, win, k_d, assists, accuracy_percent, damage_dealt, player_spm, hill_time_s, hill_captures, hill_defends FROM allMajors2019 WHERE mode == "Hardpoint"')
+all_hp_2019 <- sqldf('SELECT player, win, k_d, assists, damage_dealt, player_spm, hill_time_s, hill_captures, hill_defends FROM allMajors2019 WHERE mode == "Hardpoint"')
 all_hp_2019 <- all_hp_2019[order(all_hp_2019$player),]
 
 ```
+
+```{r}
+
+all_hp_2019_mb <- all_hp_2019
+
+playerWinsHP <- sqldf('SELECT player, win FROM all_hp_2019_mb WHERE win == "W"') # selects all the wins for each player
+playerWinsHP <- playerWinsHP %>% count(player) # counts the number of wins per player
+
+all_hp_2019_mb <- all_hp_2019_mb %>%
+  group_by(player) %>%
+  mutate(avg_kd = mean(k_d)) %>%
+  mutate(avg_spm = mean(player_spm)) %>%
+  mutate(avg_assists = mean(assists)) %>%
+  mutate(avg_damagedealt = mean(damage_dealt)) %>%
+  mutate(avg_hilltime = mean(hill_time_s)) %>%
+  mutate(avg_captures = mean(hill_captures)) %>%
+  mutate(avg_defends = mean(hill_defends)) %>%
+  subset(., select = -c(k_d, assists, damage_dealt, hill_time_s, hill_captures, hill_defends, player_spm, win)) %>%
+  unique()
+
+# creates a final dataset for hardpoint where each player only has one row, which includes the averages of all of his statistics
+all_hp_2019_mb <- sqldf('SELECT * FROM all_hp_2019_mb INNER JOIN playerWinsHP ON all_hp_2019_mb.player = playerWinsHP.player')
+
+
+```
+
 
 **Search and Destroy subset**
 ```{r}
 
 # all 2019 SND data
-all_snd_2019 <- sqldf('SELECT player, win, k_d, assists, accuracy_percent, damage_dealt, player_spm, bomb_sneak_defuses, bomb_plants, bomb_defuses, snd_rounds, snd_firstbloods FROM allMajors2019 WHERE mode == "Search & Destroy"')
+all_snd_2019 <- sqldf('SELECT player, win, k_d, assists, damage_dealt, player_spm, bomb_sneak_defuses, bomb_plants, bomb_defuses, snd_rounds, snd_firstbloods FROM allMajors2019 WHERE mode == "Search & Destroy"')
 
 # adds new column with fb/round ratio
 all_snd_2019 <- add_column(all_snd_2019, fb_round_ratio = all_snd_2019$snd_firstbloods/all_snd_2019$snd_rounds)
@@ -214,7 +242,7 @@ all_snd_2019 <- all_snd_2019[order(all_snd_2019$player),]
 ```{r}
 
 # all 2019 CONTROL data
-all_control_2019 <- sqldf('SELECT player, win, k_d, assists, accuracy_percent, damage_dealt, player_spm FROM allMajors2019 WHERE mode == "Control"')
+all_control_2019 <- sqldf('SELECT player, win, k_d, assists, damage_dealt, player_spm FROM allMajors2019 WHERE mode == "Control"')
 all_control_2019 <- all_control_2019[order(all_control_2019$player),]
 
 ```
@@ -242,7 +270,7 @@ Search and Destroy is a gamemode that has multiple rounds, where in each round, 
 
 # player firstblood average for SND 2019
 
-ggplot(all_snd_2019, aes(x = reorder(player, fb_avg), y = fb_avg)) + geom_boxplot() + coord_flip(ylim = c(0, 3)) + labs(y = "Firstblood Average", x = "Player", subtitle = "Player Firstblood Average for SEARCH AND DESTROY, 2019 Season (BO4), Descending")
+ggplot(all_snd_2019, aes(x = reorder(player, fb_avg), y = fb_avg)) + geom_point() + coord_flip(ylim = c(0, 3)) + labs(y = "Firstblood Average", x = "Player", subtitle = "Player Firstblood Average for SEARCH AND DESTROY, 2019 Season (BO4), Descending")
 
 ```
 
@@ -270,7 +298,11 @@ ggplot(all_snd_2019, aes(x = reorder(player, fb_round_ratio), y = fb_round_ratio
 
 # player damage dealt OVERALL 2019
 
-ggplot(allMajors2019, aes(x = reorder(player, damage_dealt), y = damage_dealt)) + geom_boxplot() + coord_flip(ylim = c(0, 10000)) + labs(y = "Damage Dealt", x = "Player", subtitle = "OVERALL Player Damage Dealt, 2019 Season (BO4), Descending")
+# removes all entries where damage is 0; this is almost always a result of data loss
+allMajors2019 <- sqldf('SELECT * FROM allMajors2019 WHERE damage_dealt != "0"')
+playerDamage <- sqldf('SELECT player, damage_dealt FROM allMajors2019 WHERE damage_dealt != "0"')
+
+ggplot(playerDamage, aes(x = reorder(player, damage_dealt), y = damage_dealt)) + geom_boxplot() + coord_flip(ylim = c(0, 10000)) + labs(y = "Damage Dealt", x = "Player", subtitle = "OVERALL Player Damage Dealt, 2019 Season (BO4), Descending")
 
 ```
 
@@ -290,12 +322,36 @@ ggplot(allMajors2019, aes(x = reorder(player, player_spm), y = player_spm)) + ge
 
 # Overall number of wins for 2019 season
 
-ggplot(allMajors2019, aes(x = reorder(player, win), y = win)) + geom_bar() + coord_flip(ylim = c(0, 675)) + labs(y = "Number of wins", x = "Player", subtitle = "OVERALL Number of Wins, 2019 Season (BO4), Descending")
+playerWins <- sqldf('SELECT player, win FROM allMajors2019 WHERE win == "W"') # selects all the wins for each player
+playerWins <- playerWins %>% count(player) # counts the number of wins per player
+
+ggplot(playerWins, aes(x = reorder(player, n), y = n)) + geom_bar(stat = 'identity') + coord_flip() + labs(y = "Number of Wins", x = "Player", subtitle = "OVERALL Number of Wins per Player, 2019 Season (BO4), Descending")
 
 ```
 
+The top 4 players with the most amount of wins in the season are Slasher, Octane, Kenny, and Enable. The interesting part about this is that all of these players were on the same team, 100 Thieves. They all tied with 116 wins during the season. 
 
 
+```{r}
+
+playerWins %>%
+  ggplot(aes(x = n)) + geom_histogram(binwidth = 15, color = "black", fill = "white")
+
+```
+
+The number of wins appears to follow a normal distribution. The left side of the histogram appears to be slightly more populated, but I hypothesize that this is due to players that didn't play for the whole season.
+
+```{r}
+
+# # Equivalent with a formula
+# pairs(win ~ k_d + player_spm + damage_dealt + assists + hill_time_s + hill_captures + hill_defends, data = all_hp_2019)
+
+mydata.cor = cor(all_hp_2019, method = c("spearman"))
+
+cor(mydata.cor)
+corrplot(mydata.cor)
+
+```
 
 
 
