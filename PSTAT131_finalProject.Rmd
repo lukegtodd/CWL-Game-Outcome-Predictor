@@ -70,6 +70,7 @@ library(janitor)
 library(sqldf)
 library(sjmisc)
 library(vembedr)
+library(rpart)
 
 ```
 
@@ -226,6 +227,10 @@ champs2019 <- champs2019 %>% clean_names(.)
 champs2019 <- champs2019[order(champs2019$player),]
 champs2019 <- sqldf('SELECT * FROM champs2019 WHERE match_id NOT LIKE "missing%"')
 champs2019 <- sqldf('SELECT * FROM champs2019 WHERE damage_dealt != "0"')
+
+# changes W to 1, L to 0
+champs2019$win <- ifelse(champs2019$win == "W", 1, 0) %>%
+  as.factor()
 
 ```
 
@@ -514,26 +519,26 @@ summary(lm_totals)
 
 -----------------------------------------------------------------------
 
-ALL CODE WAS DONE USING GOOGLE / MY OWN
 
-### MODEL 1: DECISION TREE ON MY OWN
+### MODEL 1: DECISION TREE
 
-**Now let's try a different approach, essentially from scratch. Let's try to predict a win (YES) or a loss (NO) using a player's data. DECISION TREE METHOD** Most likely, I should do this by gamemode. Otherwise, certain columns will be empty since some of the data is not releveant in different gamemodes.
+**Now let's try a different approach, essentially from scratch. Let's try to predict a win (YES) or a loss (NO) using a player's data. DECISION TREE METHOD** Most likely, I should do this by gamemode. Otherwise, certain columns will be empty since some of the data is not relevant in different gamemodes.
 
 ```{r}
+
 hp2019_wl <- hp2019
 
 # changes W to 1, L to 0
-# hp2019_wl$win <- ifelse(hp2019_wl$win == "W", 1, 0) %>%
-#   as.factor()
-
-hp2019_wl$win <- as.factor(hp2019_wl$win)
+hp2019_wl$win <- ifelse(hp2019_wl$win == "W", 1, 0) %>%
+  as.factor()
 
 ```
 
-### SPLITTING DATA (in case I can't do it manually)
+### SPLITTING DATA
 
 ```{r}
+
+set.seed(3068)
 
 hp2019_wlsplit <- hp2019_wl %>%
   initial_split(prop = 0.8, strata = "win")
@@ -541,76 +546,130 @@ hp2019_wlsplit <- hp2019_wl %>%
 hp2019_train <- training(hp2019_wlsplit)
 hp2019_test <- testing(hp2019_wlsplit)
 
-hp2019_train_folds <- vfold_cv(hp2019_train, v = 5, strata = win)
 
 head(hp2019_train)
 
 dim(hp2019_train)
 dim(hp2019_test)
 
-```
-
-
-```{r}
-
 prop.table(table(hp2019_train$win))
 
 ```
 
+Creating a general decision tree specification using rpart:
 ```{r}
 
-# install.packages("rpart.plot")
-library(rpart)
-library(rpart.plot)
+tree_spec <- decision_tree() %>%
+  set_engine("rpart")
+
+class_tree_spec <- tree_spec %>%
+  set_mode("classification")
+
+class_tree_fit <- class_tree_spec %>%
+  fit(win ~ k_d + assists + damage_dealt + player_spm + hill_time_s + hill_captures + hill_defends, data = hp2019_train)
+
+class_tree_fit %>%
+  extract_fit_engine() %>%
+  rpart.plot()
 
 ```
 
-
-**Predicting with the test hardpoint data**
+Checking confusion matrix and accuracy of the train data:
 ```{r}
 
-fit_hp2019 <- rpart(win ~ k_d + assists + damage_dealt + player_spm + hill_time_s + hill_captures + hill_defends, data = hp2019_train, method = 'class')
+augment(class_tree_fit, new_data = hp2019_train) %>%
+  conf_mat(truth = win, estimate = .pred_class)
 
-rpart.plot(fit_hp2019, extra = 106)
-
-
-predict_test <- predict(fit, hp2019_test, type = 'class')
-
-table_mat <- table(hp2019_test$win, predict_test)
-table_mat
-
-accuracy_test <- sum(diag(table_mat)) / sum(table_mat)
-print(paste('Accuracy for test:', accuracy_test))
+augment(class_tree_fit, new_data = hp2019_train) %>%
+  accuracy(truth = win, estimate = .pred_class)
 
 ```
 
-
-**Testing further with Champs hardpoint data**
+Checking confusion matrix and accuracy of the test data:
 ```{r}
 
-fit_hpChamps <- rpart(win ~ k_d + assists + damage_dealt + player_spm + hill_time_s + hill_captures + hill_defends, data = hpChamps, method = 'class')
+augment(class_tree_fit, new_data = hp2019_test) %>%
+  conf_mat(truth = win, estimate = .pred_class)
 
-rpart.plot(fit_hpChamps, extra = 106)
-
-predict_champs <- predict(fit_hpChamps, hpChamps, type = 'class')
-
-table_mat <- table(hpChamps$win, predict_champs)
-table_mat
-
-accuracy_test <- sum(diag(table_mat)) / sum(table_mat)
-print(paste('Accuracy for test:', accuracy_test))
+augment(class_tree_fit, new_data = hp2019_test) %>%
+  accuracy(truth = win, estimate = .pred_class)
 
 ```
 
+Checking confusion matrix and accuracy of the Champs data:
+```{r}
 
+augment(class_tree_fit, new_data = hpChamps) %>%
+  conf_mat(truth = win, estimate = .pred_class)
+
+augment(class_tree_fit, new_data = hpChamps) %>%
+  accuracy(truth = win, estimate = .pred_class)
+
+```
+
+```{r}
+
+class_tree_wf <- workflow() %>%
+  add_model(class_tree_spec %>% set_args(cost_complexity = tune())) %>%
+  add_formula(win ~ .)
+
+```
+
+```{r}
+
+set.seed(3068)
+hp2019_fold <- vfold_cv(hp2019_train)
+
+param_grid <- grid_regular(cost_complexity(range = c(-3, -1)), levels = 10)
+
+tune_res <- tune_grid(
+  class_tree_wf, 
+  resamples = hp2019_fold, 
+  grid = param_grid, 
+  metrics = metric_set(accuracy)
+)
+
+```
+
+```{r}
+
+autoplot(tune_res)
+
+```
+
+```{r}
+
+best_complexity <- select_best(tune_res)
+
+class_tree_final <- finalize_workflow(class_tree_wf, best_complexity)
+
+class_tree_final_fit <- fit(class_tree_final, data = hp2019_train)
+
+```
+
+```{r}
+
+class_tree_final_fit %>%
+  extract_fit_engine() %>%
+  rpart.plot()
+
+```
+
+```{r}
+
+augment(class_tree_final_fit, new_data = hpChamps) %>%
+  accuracy(truth = win, estimate = .pred_class)
+
+```
 
 
 
 -----------------------------------------------------------------------
 
-BASING ALL FURTHER CODE ON HOMEWORK 6
 
 
+
+BASED ON HW'S. NEEDS A LOT OF WORK
 
 ### MODEL: Decision Tree Model
 
@@ -625,129 +684,41 @@ recipe_hp <- recipe(win ~ k_d + assists + damage_dealt + player_spm + hill_time_
 
 ```
 
-```{r}
-
-library(rpart.plot)
-library(vip)
-library(janitor)
-library(randomForest)
-library(xgboost)
-
-set.seed(3068)
-
-tree_spec <- decision_tree() %>%
-  set_engine("rpart")
-
-class_tree_spec <- tree_spec %>%
-  set_mode("classification")
-
-class_tree_fit <- class_tree_spec %>%
-  fit(win ~ k_d + assists + damage_dealt + player_spm + hill_time_s + hill_captures + hill_defends, data = hp2019_train)
-
-class_tree_workflow <- workflow() %>%
-  add_model(class_tree_spec %>% set_args(cost_complexity = tune())) %>%
-  add_recipe(recipe_hp)
-
-hp2019_folding <- vfold_cv(hp2019_train)
-
-parameter_grid <- grid_regular(cost_complexity(range = c(-3, -1)), levels = 10)
-
-tune_res <- tune_grid(class_tree_workflow, resamples = hp2019_folding, grid = parameter_grid, metrics = metric_set(roc_auc))
-
-autoplot(tune_res)
 
 
-```
 
-```{r}
-
-bestcomplexity <- select_best(tune_res, metric = "roc_auc")
-bestcomplexity
-
-```
-
-```{r}
-
-metrics <- collect_metrics(tune_res)
-arrange(metrics, desc(mean))
-
-```
-We can see that our highest mean roc was about 76%.
-
-```{r}
-
-bestcomplexity <- select_best(tune_res)
-
-class_tree_final <- finalize_workflow(class_tree_workflow, bestcomplexity)
-
-class_tree_final_fit <- fit(class_tree_final, data = hp2019_train)
-
-class_tree_final_fit %>%
-  extract_fit_engine() %>%
-  rpart.plot()
-
-```
-
-```{r}
-
-roc <- select_best(tune_res, metric = "roc_auc")
-
-decision_final <- finalize_workflow(class_tree_workflow, roc)
-
-decision_fit <- fit(decision_final, data = hp2019_test)
-
-```
+------------------------------------------------------------------------
 
 
 
 
 
---------------------------------------------
 
-MODELS BASED ON THE FINAL PROJECT EXAMPLE
 
-```{r}
 
-train_folds <- vfold_cv(hp2019_train, v = 10, repeats = 5)
 
-rf_model <- 
-  rand_forest(
-              min_n = tune(),
-              mtry = tune(),
-              mode = "regression") %>% 
-  set_engine("ranger")
 
-rf_workflow <- workflow() %>% 
-  add_model(rf_model) %>% 
-  add_recipe(recipe_hp)
 
-```
 
-```{r}
 
-rf_params <- parameters(rf_model) %>% 
-  update(mtry = mtry(range= c(2, 120)))
 
-# define grid
-rf_grid <- grid_regular(rf_params, levels = 2)
 
-```
 
-```{r}
 
-rf_tune <- rf_workflow %>% 
-  tune_grid(
-    resamples = train_folds, 
-    # how does it complete the models in those workflows
-    grid = rf_grid)
 
-```
 
-```{r}
 
-autoplot(rf_tune, metric = "rmse")
 
-```
+
+
+
+
+
+
+
+
+
+
 
 
 
