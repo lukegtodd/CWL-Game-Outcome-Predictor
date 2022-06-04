@@ -88,7 +88,7 @@ anaheim2019 <- read_csv(url("https://raw.githubusercontent.com/Activision/cwl-da
 proleagueFinals2019 <- read_csv(url("https://raw.githubusercontent.com/Activision/cwl-data/master/data/data-2019-07-21-proleague-finals.csv"))
 
 # all stats for all major tournaments (EXCEPT CHAMPS) in BO4 (2019)
-allMajors2019 <- rbind(proleague2019, fortworth2019, london2019, anaheim2019, proleagueFinals2019)
+majors2019 <- rbind(proleague2019, fortworth2019, london2019, anaheim2019, proleagueFinals2019)
 
 # champs will act as our test data; we will try and predict the winner
 champs2019 <- read_csv(url("https://raw.githubusercontent.com/Activision/cwl-data/master/data/data-2019-08-18-champs.csv"))
@@ -152,39 +152,74 @@ In a typical data split, we would merge all the data into one large data set, an
 
 The data below is for all of the majors throughout the season, except for COD Champs. We will reserve COD Champs to act as a test set. The raw data from each major is merged into one major dataset, further broken up into Hardpoint, SND, and Control datasets.  
 
-**All major data merged into one large dataset.**
+### SEASON MAJORS 2019 DATA
 ```{r}
 
 # CLEANING
-allMajors2019 <- allMajors2019 %>% clean_names(.)
+majors2019 <- majors2019 %>% clean_names(.)
 
 # new dataset that contains all of the missing data, just in case
-allMajors2019_missing <- sqldf('SELECT * FROM allMajors2019 WHERE match_id LIKE "missing%"')
+majors2019_missing <- sqldf('SELECT * FROM majors2019 WHERE match_id LIKE "missing%"')
 
 # whole event data, all players and all maps, where player names are organized alphabetically
-allMajors2019 <- allMajors2019[order(allMajors2019$player),]
+majors2019 <- majors2019[order(majors2019$player),]
 
 # removes missing values
-allMajors2019 <- sqldf('SELECT * FROM allMajors2019 WHERE match_id NOT LIKE "missing%"')
+majors2019 <- sqldf('SELECT * FROM majors2019 WHERE match_id NOT LIKE "missing%"')
 
 # calculates all the players that have played more than 50 games
-playerNumGames <- count(allMajors2019, player) %>% subset(., n > 50) %>% remove_cols(n)
+player_numgames <- count(majors2019, player) %>% subset(., n > 50) %>% remove_cols(n)
 
 # includes all existing data for all players that have played more than 50 games (arbitrary number)
-allMajors2019 <- sqldf('SELECT * FROM allMajors2019 WHERE player IN playerNumGames')
+majors2019 <- sqldf('SELECT * FROM majors2019 WHERE player IN player_numgames')
 
 # removes all matches where damage = 0; almost always occurs as a result of data loss
-allMajors2019 <- sqldf('SELECT * FROM allMajors2019 WHERE damage_dealt != "0"')
+majors2019 <- sqldf('SELECT * FROM majors2019 WHERE damage_dealt != "0"')
 
 # # converts win to numeric where 1 is Loss and 2 is Win
-# allMajors2019$win <- factor(allMajors2019$win, levels = as.character(unique(allMajors2019$win)))
-# allMajors2019$win <- as.numeric(allMajors2019$win)
-
-
+# majors2019$win <- factor(majors2019$win, levels = as.character(unique(majors2019$win)))
+# majors2019$win <- as.numeric(majors2019$win)
 
 ```
 
-**Cleaning Champs2019 dataset**
+**Hardpoint subset**
+```{r}
+
+# all 2019 hardpoint data
+hp2019 <- sqldf('SELECT player, k_d, win, kills, deaths, x, assists, damage_dealt, player_spm, hill_time_s, hill_captures, hill_defends FROM majors2019 WHERE mode == "Hardpoint"')
+hp2019 <- hp2019[order(hp2019$player),]
+
+```
+
+**Search and Destroy subset**
+```{r}
+
+# all 2019 SND data
+snd2019 <- sqldf('SELECT player, win, k_d, assists, damage_dealt, player_spm, bomb_sneak_defuses, bomb_plants, bomb_defuses, snd_rounds, snd_firstbloods FROM majors2019 WHERE mode == "Search & Destroy"')
+
+# adds new column with fb/round ratio
+snd2019 <- add_column(snd2019, fb_round_ratio = snd2019$snd_firstbloods/snd2019$snd_rounds)
+
+# adding a new column with average first bloods for the season
+snd2019 <- snd2019 %>%
+  group_by(player) %>%
+  mutate(fb_avg = mean(snd_firstbloods))
+
+# puts data in alphabetical order
+snd2019 <- snd2019[order(snd2019$player),]
+
+```
+
+**Control subset**
+```{r}
+
+# all 2019 CONTROL data
+control2019 <- sqldf('SELECT player, win, k_d, assists, damage_dealt, player_spm FROM majors2019 WHERE mode == "Control"')
+control2019 <- control2019[order(control2019$player),]
+
+```
+
+### Cleaning Champs2019 dataset
 ```{r}
 
 champs2019 <- champs2019 %>% clean_names(.)
@@ -194,55 +229,55 @@ champs2019 <- sqldf('SELECT * FROM champs2019 WHERE damage_dealt != "0"')
 
 ```
 
-
-**Hardpoint subset**
+**Hardpoint CHAMPS subset**
 ```{r}
 
-# all 2019 hardpoint data
-all_hp_2019 <- sqldf('SELECT player, k_d, win, kills, deaths, x, assists, damage_dealt, player_spm, hill_time_s, hill_captures, hill_defends FROM allMajors2019 WHERE mode == "Hardpoint"')
-all_hp_2019 <- all_hp_2019[order(all_hp_2019$player),]
+# CHAMPS 2019 hardpoint data
+hpChamps <- sqldf('SELECT player, k_d, win, kills, deaths, x, assists, damage_dealt, player_spm, hill_time_s, hill_captures, hill_defends FROM champs2019 WHERE mode == "Hardpoint"')
+hpChamps <- hpChamps[order(hpChamps$player),]
 
 ```
 
-**Search and Destroy subset**
+**Search and Destroy CHAMPS subset**
 ```{r}
 
-# all 2019 SND data
-all_snd_2019 <- sqldf('SELECT player, win, k_d, assists, damage_dealt, player_spm, bomb_sneak_defuses, bomb_plants, bomb_defuses, snd_rounds, snd_firstbloods FROM allMajors2019 WHERE mode == "Search & Destroy"')
+# CHAMPS 2019 SND data
+sndChamps <- sqldf('SELECT player, win, k_d, assists, damage_dealt, player_spm, bomb_sneak_defuses, bomb_plants, bomb_defuses, snd_rounds, snd_firstbloods FROM champs2019 WHERE mode == "Search & Destroy"')
 
 # adds new column with fb/round ratio
-all_snd_2019 <- add_column(all_snd_2019, fb_round_ratio = all_snd_2019$snd_firstbloods/all_snd_2019$snd_rounds)
+sndChamps <- add_column(sndChamps, fb_round_ratio = sndChamps$snd_firstbloods/sndChamps$snd_rounds)
 
 # adding a new column with average first bloods for the season
-all_snd_2019 <- all_snd_2019 %>%
+sndChamps <- sndChamps %>%
   group_by(player) %>%
   mutate(fb_avg = mean(snd_firstbloods))
 
 # puts data in alphabetical order
-all_snd_2019 <- all_snd_2019[order(all_snd_2019$player),]
+sndChamps <- sndChamps[order(sndChamps$player),]
 
 ```
 
-**Control subset**
+**Control CHAMPS subset**
 ```{r}
 
-# all 2019 CONTROL data
-all_control_2019 <- sqldf('SELECT player, win, k_d, assists, damage_dealt, player_spm FROM allMajors2019 WHERE mode == "Control"')
-all_control_2019 <- all_control_2019[order(all_control_2019$player),]
+# CHAMPS 2019 CONTROL data
+controlChamps <- sqldf('SELECT player, win, k_d, assists, damage_dealt, player_spm FROM champs2019 WHERE mode == "Control"')
+controlChamps <- controlChamps[order(controlChamps$player),]
 
 ```
 
 ---  
 
 # Exploratory Data Analysis
+For my exploratory data analysis, I will be using just the season data. It will not include the Champs data.
 
 ### Some basic plots: Kill/death for season
 ```{r, fig.height = 25, fig.width = 9}
 
-ggplot(allMajors2019, aes(x = reorder(player, k_d), y = k_d)) + geom_boxplot() + coord_flip(ylim = c(0, 3.5)) + labs(y = "Kill/death ratio", x = "Player", subtitle = "OVERALL Player K/D's, 2019 Season (BO4), Descending")
-ggplot(all_hp_2019, aes(x = reorder(player, k_d), y = k_d)) + geom_boxplot() + coord_flip(ylim = c(0, 3.5)) + labs(y = "Kill/death ratio", x = "Player", subtitle = "Player K/D's for HARDPOINT, 2019 Season (BO4), Descending")
-ggplot(all_snd_2019, aes(x = reorder(player, k_d), y = k_d)) + geom_boxplot() + coord_flip(ylim = c(0, 5)) + labs(y = "Kill/death ratio", x = "Player", subtitle = "Player K/D's for SEARCH AND DESTROY, 2019 Season (BO4), Descending")
-ggplot(all_control_2019, aes(x = reorder(player, k_d), y = k_d)) + geom_boxplot() + coord_flip(ylim = c(0, 3.5)) + labs(y = "Kill/death ratio", x = "Player", subtitle = "Player K/D's for CONTROL, 2019 Season (BO4), Descending")
+ggplot(majors2019, aes(x = reorder(player, k_d), y = k_d)) + geom_boxplot() + coord_flip(ylim = c(0, 3.5)) + labs(y = "Kill/death ratio", x = "Player", subtitle = "OVERALL Player K/D's, 2019 Season (BO4), Descending")
+ggplot(hp2019, aes(x = reorder(player, k_d), y = k_d)) + geom_boxplot() + coord_flip(ylim = c(0, 3.5)) + labs(y = "Kill/death ratio", x = "Player", subtitle = "Player K/D's for HARDPOINT, 2019 Season (BO4), Descending")
+ggplot(snd2019, aes(x = reorder(player, k_d), y = k_d)) + geom_boxplot() + coord_flip(ylim = c(0, 5)) + labs(y = "Kill/death ratio", x = "Player", subtitle = "Player K/D's for SEARCH AND DESTROY, 2019 Season (BO4), Descending")
+ggplot(control2019, aes(x = reorder(player, k_d), y = k_d)) + geom_boxplot() + coord_flip(ylim = c(0, 3.5)) + labs(y = "Kill/death ratio", x = "Player", subtitle = "Player K/D's for CONTROL, 2019 Season (BO4), Descending")
 
 ```
 
@@ -255,7 +290,7 @@ Search and Destroy is a gamemode that has multiple rounds, where in each round, 
 
 # player firstblood average for SND 2019
 
-ggplot(all_snd_2019, aes(x = reorder(player, fb_avg), y = fb_avg)) + geom_point() + coord_flip(ylim = c(0, 3)) + labs(y = "Firstblood Average", x = "Player", subtitle = "Player Firstblood Average for SEARCH AND DESTROY, 2019 Season (BO4), Descending")
+ggplot(snd2019, aes(x = reorder(player, fb_avg), y = fb_avg)) + geom_point() + coord_flip(ylim = c(0, 3)) + labs(y = "Firstblood Average", x = "Player", subtitle = "Player Firstblood Average for SEARCH AND DESTROY, 2019 Season (BO4), Descending")
 
 ```
 
@@ -264,7 +299,7 @@ ggplot(all_snd_2019, aes(x = reorder(player, fb_avg), y = fb_avg)) + geom_point(
 
 # player firstbloods for SND 2019
 
-ggplot(all_snd_2019, aes(x = reorder(player, snd_firstbloods), y = snd_firstbloods)) + geom_boxplot() + coord_flip(ylim = c(0, 6)) + labs(y = "Firstbloods", x = "Player", subtitle = "Player Firstbloods for SEARCH AND DESTROY, 2019 Season (BO4), Descending")
+ggplot(snd2019, aes(x = reorder(player, snd_firstbloods), y = snd_firstbloods)) + geom_boxplot() + coord_flip(ylim = c(0, 6)) + labs(y = "Firstbloods", x = "Player", subtitle = "Player Firstbloods for SEARCH AND DESTROY, 2019 Season (BO4), Descending")
 
 ```
 
@@ -273,7 +308,7 @@ ggplot(all_snd_2019, aes(x = reorder(player, snd_firstbloods), y = snd_firstbloo
 
 # player firstblood/round for SND 2019
 
-ggplot(all_snd_2019, aes(x = reorder(player, fb_round_ratio), y = fb_round_ratio)) + geom_boxplot() + coord_flip(ylim = c(0, 0.6)) + labs(y = "Firstblood/round ratio", x = "Player", subtitle = "Player Firstblood/Round for SEARCH AND DESTROY, 2019 Season (BO4), Descending")
+ggplot(snd2019, aes(x = reorder(player, fb_round_ratio), y = fb_round_ratio)) + geom_boxplot() + coord_flip(ylim = c(0, 0.6)) + labs(y = "Firstblood/round ratio", x = "Player", subtitle = "Player Firstblood/Round for SEARCH AND DESTROY, 2019 Season (BO4), Descending")
 
 ```
 
@@ -284,8 +319,8 @@ ggplot(all_snd_2019, aes(x = reorder(player, fb_round_ratio), y = fb_round_ratio
 # player damage dealt OVERALL 2019
 
 # removes all entries where damage is 0; this is almost always a result of data loss
-allMajors2019 <- sqldf('SELECT * FROM allMajors2019 WHERE damage_dealt != "0"')
-playerDamage <- sqldf('SELECT player, damage_dealt FROM allMajors2019 WHERE damage_dealt != "0"')
+majors2019 <- sqldf('SELECT * FROM majors2019 WHERE damage_dealt != "0"')
+playerDamage <- sqldf('SELECT player, damage_dealt FROM majors2019 WHERE damage_dealt != "0"')
 
 ggplot(playerDamage, aes(x = reorder(player, damage_dealt), y = damage_dealt)) + geom_boxplot() + coord_flip(ylim = c(0, 10000)) + labs(y = "Damage Dealt", x = "Player", subtitle = "OVERALL Player Damage Dealt, 2019 Season (BO4), Descending")
 
@@ -297,7 +332,7 @@ ggplot(playerDamage, aes(x = reorder(player, damage_dealt), y = damage_dealt)) +
 
 # Overall score per minute for 2019 season
 
-ggplot(allMajors2019, aes(x = reorder(player, player_spm), y = player_spm)) + geom_boxplot() + coord_flip(ylim = c(0, 675)) + labs(y = "Score per minute", x = "Player", subtitle = "OVERALL Player Score per minute, 2019 Season (BO4), Descending")
+ggplot(majors2019, aes(x = reorder(player, player_spm), y = player_spm)) + geom_boxplot() + coord_flip(ylim = c(0, 675)) + labs(y = "Score per minute", x = "Player", subtitle = "OVERALL Player Score per minute, 2019 Season (BO4), Descending")
 
 ```
 
@@ -307,10 +342,10 @@ ggplot(allMajors2019, aes(x = reorder(player, player_spm), y = player_spm)) + ge
 
 # Overall number of wins for 2019 season
 
-playerWins <- sqldf('SELECT player, win FROM allMajors2019 WHERE win == "W"') # selects all the wins for each player
-playerWins <- playerWins %>% count(player) # counts the number of wins per player
+playerwins <- sqldf('SELECT player, win FROM majors2019 WHERE win == "W"') # selects all the wins for each player
+playerwins <- playerwins %>% count(player) # counts the number of wins per player
 
-ggplot(playerWins, aes(x = reorder(player, n), y = n)) + geom_bar(stat = 'identity') + coord_flip() + labs(y = "Number of Wins", x = "Player", subtitle = "OVERALL Number of Wins per Player, 2019 Season (BO4), Descending")
+ggplot(playerwins, aes(x = reorder(player, n), y = n)) + geom_bar(stat = 'identity') + coord_flip() + labs(y = "Number of Wins", x = "Player", subtitle = "OVERALL Number of Wins per Player, 2019 Season (BO4), Descending")
 
 ```
 
@@ -319,7 +354,7 @@ The top 4 players with the most amount of wins in the season are Slasher, Octane
 
 ```{r}
 
-playerWins %>%
+playerwins %>%
   ggplot(aes(x = n)) + geom_histogram(binwidth = 15, color = "black", fill = "white")
 
 ```
@@ -332,7 +367,7 @@ The number of wins appears to follow a normal distribution. The left side of the
 
 
 
-----------------------------------------------------------------------------------------------------------
+-----------------------------------------------------------------------------------------
 **BREAK FROM EDA**
 
 
@@ -346,29 +381,29 @@ The number of wins appears to follow a normal distribution. The left side of the
 **I will be working with a new dataset, just so I don't mess up the original dataset.**
 ```{r}
 
-all_hp_2019_mb <- all_hp_2019
+hp2019_mb <- hp2019
 
 ```
 
 **Number of wins for each player.**
 ```{r}
 
-playerWinsHP <- sqldf('SELECT player, win FROM all_hp_2019_mb WHERE win == "W"') # selects all the wins for each player
-playerWinsHP <- playerWinsHP %>% count(player) # counts wins per players
+hp_playerwins <- sqldf('SELECT player, win FROM hp2019_mb WHERE win == "W"') # selects all the wins for each player
+hp_playerwins <- hp_playerwins %>% count(player) # counts wins per players
 
 ```
 
 **Attempting to use averages to predict win percentage of each player.**
 ```{r}
 
-playerGamesPlayed <- sqldf('SELECT player, win FROM all_hp_2019_mb')
-playerGamesPlayed <- playerGamesPlayed %>% count(player) # calculates the number of games played per player
+hp_player_numgames <- sqldf('SELECT player, win FROM hp2019_mb')
+hp_player_numgames <- hp_player_numgames %>% count(player) # calculates the number of games played per player
 
-playerWinRateHP <- merge(playerWinsHP, playerGamesPlayed, by = c("player")) %>%
-  mutate(winRate = n.x/n.y) %>%
+hp_player_winrate <- merge(hp_playerwins, hp_player_numgames, by = c("player")) %>%
+  mutate(winrate = n.x/n.y) %>%
   subset(., select = -c(n.x, n.y))
 
-all_hp_2019_averages <- all_hp_2019_mb %>%
+hp2019_averages <- hp2019_mb %>%
   group_by(player) %>%
   mutate(avg_kd = mean(k_d)) %>%
   mutate(avg_spm = mean(player_spm)) %>%
@@ -381,14 +416,14 @@ all_hp_2019_averages <- all_hp_2019_mb %>%
   unique()
 
 # creates a final dataset for hardpoint where each player only has one row, which includes the averages of all of his statistics
-all_hp_2019_averages <- merge(playerWinRateHP, all_hp_2019_averages, by = c("player"))
+hp2019_averages <- merge(hp_player_winrate, hp2019_averages, by = c("player"))
 
 ```
 
 **Attempting to use totals to predict number of wins of each player.**
 ```{r}
 
-all_hp_2019_totals <- all_hp_2019_mb %>%
+hp2019_totals <- hp2019_mb %>%
   group_by(player) %>%
   mutate(tot_kills = sum(kills)) %>%
   mutate(tot_deaths = sum(deaths)) %>%
@@ -403,7 +438,7 @@ all_hp_2019_totals <- all_hp_2019_mb %>%
   unique()
 
 # creates a final dataset for hardpoint where each player only has one row, which includes the averages of all of his statistics
-all_hp_2019_totals <- merge(playerWinsHP, all_hp_2019_totals, by = c("player"))
+hp2019_totals <- merge(hp_playerwins, hp2019_totals, by = c("player"))
 
 ```
 
@@ -411,9 +446,9 @@ all_hp_2019_totals <- merge(playerWinsHP, all_hp_2019_totals, by = c("player"))
 **Correlation plots and matrix for AVERAGES**
 ```{r}
 
-pairs(winRate ~ avg_kd + avg_spm + avg_damagedealt + avg_assists + avg_hilltime + avg_captures + avg_defends, data = all_hp_2019_averages)
+pairs(winrate ~ avg_kd + avg_spm + avg_damagedealt + avg_assists + avg_hilltime + avg_captures + avg_defends, data = hp2019_averages)
 
-corr_averages_hp_2019 <- all_hp_2019_averages %>%
+corr_averages_hp_2019 <- hp2019_averages %>%
   subset(., select = -c(player))
 
 cor(corr_averages_hp_2019)
@@ -423,7 +458,7 @@ cor(corr_averages_hp_2019)
 **Regression model for Hardpoint for AVERAGES**
 ```{r}
 
-winRate <- lm(winRate ~ avg_kd + avg_spm + avg_assists + avg_damagedealt + avg_hilltime + avg_captures + avg_defends, data = all_hp_2019_averages)
+winrate <- lm(winrate ~ avg_kd + avg_spm + avg_assists + avg_damagedealt + avg_hilltime + avg_captures + avg_defends, data = hp2019_averages)
 summary(wins)
 
 ```
@@ -431,7 +466,7 @@ summary(wins)
 **Relationship for AVERAGES**
 ```{r}
 
-plot(all_hp_2019_averages$winRate, all_hp_2019_averages$avg_kd, xlab = "Win Rate", ylab = "Average K/D",
+plot(hp2019_averages$winrate, hp2019_averages$avg_kd, xlab = "Win Rate", ylab = "Average K/D",
      title("Relationship between Win Rate and K/D"))
 
 ```
@@ -443,19 +478,19 @@ plot(all_hp_2019_averages$winRate, all_hp_2019_averages$avg_kd, xlab = "Win Rate
 ```{r}
 
 # Equivalent with a formula
-pairs(n ~ tot_kills + tot_deaths + tot_spm + tot_assists + tot_damagedealt + tot_hilltime + tot_captures + tot_defends, data = all_hp_2019_totals)
+pairs(n ~ tot_kills + tot_deaths + tot_spm + tot_assists + tot_damagedealt + tot_hilltime + tot_captures + tot_defends, data = hp2019_totals)
 
-corr_totals_hp_2019 <- all_hp_2019_totals %>%
+corr_hp2019_totals <- hp2019_totals %>%
   subset(., select = -c(player))
 
-cor(corr_totals_hp_2019)
+cor(corr_hp2019_totals)
 
 ```
 
 **Relationship for TOTALS**
 ```{r}
 
-plot(all_hp_2019_totals$n, all_hp_2019_totals$tot_x, xlab = "Number of Wins", ylab = "Total Kills - Total Deaths",
+plot(hp2019_totals$n, hp2019_totals$tot_x, xlab = "Number of Wins", ylab = "Total Kills - Total Deaths",
      title("Relationship between Number of Wins and Kill and Death Discrepancy"))
 
 ```
@@ -463,8 +498,8 @@ plot(all_hp_2019_totals$n, all_hp_2019_totals$tot_x, xlab = "Number of Wins", yl
 **Regression model for Hardpoint for TOTALS**
 ```{r}
 
-winsTotal <- lm(n ~ tot_kills + tot_deaths + tot_spm + tot_assists + tot_damagedealt + tot_hilltime + tot_captures + tot_defends, data = all_hp_2019_totals)
-summary(wins)
+lm_totals <- lm(n ~ tot_kills + tot_deaths + tot_spm + tot_assists + tot_damagedealt + tot_hilltime + tot_captures + tot_defends, data = hp2019_totals)
+summary(lm_totals)
 
 ```
 
@@ -473,28 +508,52 @@ summary(wins)
 
 
 
-------------------------------------------------------------------------
+
+
+
+
+-----------------------------------------------------------------------
+
+ALL CODE WAS DONE USING GOOGLE / MY OWN
+
+### MODEL 1: DECISION TREE ON MY OWN
+
 **Now let's try a different approach, essentially from scratch. Let's try to predict a win (YES) or a loss (NO) using a player's data. DECISION TREE METHOD** Most likely, I should do this by gamemode. Otherwise, certain columns will be empty since some of the data is not releveant in different gamemodes.
 
 ```{r}
-
-all_hp_2019_wl <- all_hp_2019
+hp2019_wl <- hp2019
 
 # changes W to 1, L to 0
-# all_hp_2019_wl$win <- ifelse(all_hp_2019_wl$win == "W", 1, 0) %>%
+# hp2019_wl$win <- ifelse(hp2019_wl$win == "W", 1, 0) %>%
 #   as.factor()
 
-all_hp_2019_wl$win <- as.factor(all_hp_2019_wl$win)
-
-head(all_hp_2019_wl)
-
-dim(all_hp_2019_wl)
+hp2019_wl$win <- as.factor(hp2019_wl$win)
 
 ```
 
+### SPLITTING DATA (in case I can't do it manually)
+
 ```{r}
 
-prop.table(table(all_hp_2019_wl$win))
+hp2019_wlsplit <- hp2019_wl %>%
+  initial_split(prop = 0.8, strata = "win")
+
+hp2019_train <- training(hp2019_wlsplit)
+hp2019_test <- testing(hp2019_wlsplit)
+
+hp2019_train_folds <- vfold_cv(hp2019_train, v = 5, strata = win)
+
+head(hp2019_train)
+
+dim(hp2019_train)
+dim(hp2019_test)
+
+```
+
+
+```{r}
+
+prop.table(table(hp2019_train$win))
 
 ```
 
@@ -506,29 +565,136 @@ library(rpart.plot)
 
 ```
 
+
+**Predicting with the test hardpoint data**
 ```{r}
 
-fit <- rpart(win ~ k_d + assists + damage_dealt + player_spm + hill_time_s + hill_captures + hill_defends, data = all_hp_2019_wl, method = 'class')
+fit_hp2019 <- rpart(win ~ k_d + assists + damage_dealt + player_spm + hill_time_s + hill_captures + hill_defends, data = hp2019_train, method = 'class')
 
-rpart.plot(fit, extra = 106)
+rpart.plot(fit_hp2019, extra = 106)
 
-```
 
-```{r}
+predict_test <- predict(fit, hp2019_test, type = 'class')
 
-predict_unseen <- predict(fit, champs2019, type = 'class')
-
-table_mat <- table(champs2019$win, predict_unseen)
+table_mat <- table(hp2019_test$win, predict_test)
 table_mat
 
+accuracy_test <- sum(diag(table_mat)) / sum(table_mat)
+print(paste('Accuracy for test:', accuracy_test))
+
 ```
 
-The model correctly predicted 1168 losses, but predicted 311 losses as wins. In addition, the model correctly predicted 1024 wins, but predicted 456 wins as losses.
+
+**Testing further with Champs hardpoint data**
+```{r}
+
+fit_hpChamps <- rpart(win ~ k_d + assists + damage_dealt + player_spm + hill_time_s + hill_captures + hill_defends, data = hpChamps, method = 'class')
+
+rpart.plot(fit_hpChamps, extra = 106)
+
+predict_champs <- predict(fit_hpChamps, hpChamps, type = 'class')
+
+table_mat <- table(hpChamps$win, predict_champs)
+table_mat
+
+accuracy_test <- sum(diag(table_mat)) / sum(table_mat)
+print(paste('Accuracy for test:', accuracy_test))
+
+```
+
+
+
+
+
+-----------------------------------------------------------------------
+
+BASING ALL FURTHER CODE ON HOMEWORK 6
+
+
+
+### MODEL: Decision Tree Model
+
+I will also be using a recipe, with split, stratified, and folded data. Similar to example project.
+
 
 ```{r}
 
-accuracy_test <- sum(diag(table_mat)) / sum(table_mat)
-print(paste('Accuracy for test', accuracy_test))
+recipe_hp <- recipe(win ~ k_d + assists + damage_dealt + player_spm + hill_time_s + hill_captures + hill_defends, data = hp2019_train) %>%
+  step_dummy(all_nominal_predictors()) %>%
+  step_normalize(all_predictors())
+
+```
+
+```{r}
+
+library(rpart.plot)
+library(vip)
+library(janitor)
+library(randomForest)
+library(xgboost)
+
+set.seed(3068)
+
+tree_spec <- decision_tree() %>%
+  set_engine("rpart")
+
+class_tree_spec <- tree_spec %>%
+  set_mode("classification")
+
+class_tree_fit <- class_tree_spec %>%
+  fit(win ~ k_d + assists + damage_dealt + player_spm + hill_time_s + hill_captures + hill_defends, data = hp2019_train)
+
+class_tree_workflow <- workflow() %>%
+  add_model(class_tree_spec %>% set_args(cost_complexity = tune())) %>%
+  add_recipe(recipe_hp)
+
+hp2019_folding <- vfold_cv(hp2019_train)
+
+parameter_grid <- grid_regular(cost_complexity(range = c(-3, -1)), levels = 10)
+
+tune_res <- tune_grid(class_tree_workflow, resamples = hp2019_folding, grid = parameter_grid, metrics = metric_set(roc_auc))
+
+autoplot(tune_res)
+
+
+```
+
+```{r}
+
+bestcomplexity <- select_best(tune_res, metric = "roc_auc")
+bestcomplexity
+
+```
+
+```{r}
+
+metrics <- collect_metrics(tune_res)
+arrange(metrics, desc(mean))
+
+```
+We can see that our highest mean roc was about 76%.
+
+```{r}
+
+bestcomplexity <- select_best(tune_res)
+
+class_tree_final <- finalize_workflow(class_tree_workflow, bestcomplexity)
+
+class_tree_final_fit <- fit(class_tree_final, data = hp2019_train)
+
+class_tree_final_fit %>%
+  extract_fit_engine() %>%
+  rpart.plot()
+
+```
+
+```{r}
+
+roc <- select_best(tune_res, metric = "roc_auc")
+
+decision_final <- finalize_workflow(class_tree_workflow, roc)
+
+decision_fit <- fit(decision_final, data = hp2019_test)
 
 ```
 
@@ -536,30 +702,52 @@ print(paste('Accuracy for test', accuracy_test))
 
 
 
+--------------------------------------------
 
+MODELS BASED ON THE FINAL PROJECT EXAMPLE
 
+```{r}
 
+train_folds <- vfold_cv(hp2019_train, v = 10, repeats = 5)
 
+rf_model <- 
+  rand_forest(
+              min_n = tune(),
+              mtry = tune(),
+              mode = "regression") %>% 
+  set_engine("ranger")
 
+rf_workflow <- workflow() %>% 
+  add_model(rf_model) %>% 
+  add_recipe(recipe_hp)
 
+```
 
+```{r}
 
+rf_params <- parameters(rf_model) %>% 
+  update(mtry = mtry(range= c(2, 120)))
 
+# define grid
+rf_grid <- grid_regular(rf_params, levels = 2)
 
+```
 
+```{r}
 
+rf_tune <- rf_workflow %>% 
+  tune_grid(
+    resamples = train_folds, 
+    # how does it complete the models in those workflows
+    grid = rf_grid)
 
+```
 
+```{r}
 
+autoplot(rf_tune, metric = "rmse")
 
-
-
-
-
-
-
-
-
+```
 
 
 
