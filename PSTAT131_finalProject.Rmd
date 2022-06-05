@@ -71,6 +71,10 @@ library(sqldf)
 library(sjmisc)
 library(vembedr)
 library(rpart)
+library(rpart.plot)
+library(parsnip)
+library(vip)
+library(randomForest)
 
 ```
 
@@ -271,7 +275,108 @@ controlChamps <- controlChamps[order(controlChamps$player),]
 
 ```
 
----  
+----------------------------------------------------------
+
+
+
+
+
+
+
+
+
+
+
+
+
+###**RE-DOING DATA CLEANING TO INCLUDE EVERY PLAYER FROM THE TEAM ONE OBSERVATION**
+
+```{r}
+
+# getting all necessary data for hardpoint
+mergedhp2019 <- sqldf('SELECT match_id, team, player, kills, deaths, win, assists, damage_dealt, player_spm, hill_captures, hill_defends FROM majors2019 WHERE mode == "Hardpoint"')
+
+# organizing by each match
+mergedhp2019 <- mergedhp2019[order(mergedhp2019$match_id),]
+
+# removing all matches that DON'T include all 10 players
+# calculates all the matches that have all 10 players
+match_numplayers <- count(mergedhp2019, match_id) %>% subset(., n == 10) %>% remove_cols(n)
+
+# includes all existing data for all players that have played more than 50 games (arbitrary number)
+mergedhp2019 <- sqldf('SELECT * FROM mergedhp2019 WHERE match_id IN match_numplayers')
+
+```
+
+```{r}
+
+library(dplyr)
+library(tidyr)
+library(data.table)
+
+# merge rows so that all the players from each team are one row; expect 800 observations with about 50 variables
+
+test_mergedhp2019 <- mergedhp2019 %>%
+  rename(damage = damage_dealt,
+         spm = player_spm,
+         hillcaptures = hill_captures,
+         hilldefends = hill_defends) %>%
+   mutate(rn = rowid(match_id, team)) %>% 
+   pivot_wider(names_from = rn, values_from = c(win, 
+                                                player, 
+                                                kills,
+                                                deaths,
+                                                assists, 
+                                                damage, 
+                                                spm, 
+                                                hillcaptures, 
+                                                hilldefends)) %>%
+  subset(select = -c(win_2, win_3, win_4, win_5,
+                     player_1, player_2, player_3, player_4, player_5)) %>%
+  rename(win = win_1)
+
+test_mergedhp2019$win <- ifelse(test_mergedhp2019$win == "W", 1, 0) %>%
+  as.factor()
+
+team_mergedhp2019 <- test_mergedhp2019 %>%
+  group_by(match_id, team) %>%
+  mutate(kills = sum(kills_1, kills_2, kills_3, kills_4, kills_5),
+         deaths = sum(deaths_1, deaths_2, deaths_3, deaths_4, deaths_5),
+         kd = kills/deaths,
+         assists = sum(assists_1, assists_2, assists_3, assists_4, assists_5),
+         spm = mean(spm_1, spm_2, spm_3, spm_4, spm_5),
+         hillcaptures = sum(hillcaptures_1, hillcaptures_2, hillcaptures_3, hillcaptures_4, hillcaptures_5),
+         hilldefends = sum(hilldefends_1, hilldefends_2, hilldefends_3, hilldefends_4, hilldefends_5),
+         damage = sum(damage_1, damage_2, damage_3, damage_4, damage_5)) %>%
+  subset(select = c(win, kd, assists, spm, hillcaptures, hilldefends, damage))
+
+```
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+----------------------------------------------------------  
 
 # Exploratory Data Analysis
 For my exploratory data analysis, I will be using just the season data. It will not include the Champs data.
@@ -464,7 +569,7 @@ cor(corr_averages_hp_2019)
 ```{r}
 
 winrate <- lm(winrate ~ avg_kd + avg_spm + avg_assists + avg_damagedealt + avg_hilltime + avg_captures + avg_defends, data = hp2019_averages)
-summary(wins)
+summary(winrate)
 
 ```
 
@@ -655,12 +760,6 @@ class_tree_final_fit %>%
 
 ```
 
-```{r}
-
-augment(class_tree_final_fit, new_data = hpChamps) %>%
-  accuracy(truth = win, estimate = .pred_class)
-
-```
 
 
 
@@ -690,6 +789,114 @@ recipe_hp <- recipe(win ~ k_d + assists + damage_dealt + player_spm + hill_time_
 ------------------------------------------------------------------------
 
 
+### MODEL 2: BAGGING
+
+```{r}
+
+bagging_spec <- rand_forest(mtry = .cols()) %>%
+  set_engine("randomForest", importance = TRUE) %>%
+  set_mode("classification")
+
+```
+
+```{r}
+
+bagging_fit <- fit(bagging_spec, win ~ k_d + assists + damage_dealt + player_spm + hill_time_s + hill_captures + hill_defends, data = hp2019_train)
+
+```
+
+ERROR
+```{r}
+
+augment(bagging_fit, new_data = hp2019_test) %>%
+  rmse(truth = win, estimate = .pred)
+
+```
+
+ERROR
+```{r}
+
+augment(bagging_fit, new_data = hp2019_test) %>%
+  ggplot(aes(win, .pred)) +
+  geom_abline() +
+  geom_point(alpha = 0.5)
+
+```
+
+```{r}
+
+vip(bagging_fit)
+
+```
+
+
+
+--------------------------------------------
+
+LAB 7
+
+
+### MODEL 3: RANDOM FOREST
+
+```{r}
+
+rf_spec <- rand_forest(mtry = 6) %>%
+  set_engine("randomForest", importance = TRUE) %>%
+  set_mode("classification")
+
+```
+
+```{r}
+
+rf_fit <- fit(rf_spec, win ~ k_d + assists + damage_dealt + player_spm + hill_time_s + hill_captures + hill_defends, data = hp2019_train)
+
+```
+
+```{r}
+
+augment(rf_fit, new_data = hp2019_train) %>%
+  rmse(truth = win, estimate = k_d)
+
+```
+
+```{r}
+
+vip(rf_fit)
+
+```
+
+
+----------------------------
+
+
+INTERNET GEEKSFORGEEKS
+
+
+### MODEL 3: RANDOM FOREST
+
+
+```{r}
+
+win.rf <- randomForest(win ~ k_d + 
+                         assists + 
+                         damage_dealt + 
+                         player_spm + 
+                         hill_time_s + 
+                         hill_captures +
+                         hill_defends, 
+                       data = hp2019_train,
+                       importance = TRUE, 
+                       proximity = TRUE)
+
+print(win.rf)
+
+```
+
+```{r}
+
+plot(win.rf)
+
+```
 
 
 
@@ -699,6 +906,74 @@ recipe_hp <- recipe(win ~ k_d + assists + damage_dealt + player_spm + hill_time_
 
 
 
+
+
+
+--------------------------
+
+# TRYING DECISION TREE ON MERGED TEAM DATA
+
+### SPLITTING DATA
+
+```{r}
+
+set.seed(3068)
+
+mergedhp <- team_mergedhp2019 %>%
+  initial_split(prop = 0.8, strata = "win")
+
+mergedhp_train <- training(mergedhp)
+mergedhp_test <- testing(mergedhp)
+
+
+head(mergedhp_train)
+
+dim(mergedhp_train)
+dim(mergedhp_test)
+
+prop.table(table(mergedhp_train$win))
+
+```
+
+Creating a general decision tree specification using rpart:
+```{r}
+
+tree_spec <- decision_tree() %>%
+  set_engine("rpart")
+
+class_tree_spec <- tree_spec %>%
+  set_mode("classification")
+
+class_tree_fit <- class_tree_spec %>%
+  fit(win ~ ., data = mergedhp_train)
+
+class_tree_fit %>%
+  extract_fit_engine() %>%
+  rpart.plot()
+
+```
+
+Checking confusion matrix and accuracy of the train data:
+```{r}
+
+augment(class_tree_fit, new_data = mergedhp_train) %>%
+  conf_mat(truth = win, estimate = .pred_class)
+
+augment(class_tree_fit, new_data = mergedhp_train) %>%
+  accuracy(truth = win, estimate = .pred_class)
+
+```
+
+Checking confusion matrix and accuracy of the test data:
+```{r}
+
+augment(class_tree_fit, new_data = mergedhp_test) %>%
+  conf_mat(truth = win, estimate = .pred_class)
+
+augment(class_tree_fit, new_data = mergedhp_test) %>%
+  accuracy(truth = win, estimate = .pred_class)
+
+```
 
 
 
