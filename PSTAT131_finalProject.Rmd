@@ -75,6 +75,9 @@ library(rpart.plot)
 library(parsnip)
 library(vip)
 library(randomForest)
+library(dplyr)
+library(tidyr)
+library(data.table)
 
 ```
 
@@ -149,7 +152,7 @@ In order to assign an overall score to each individual player, we will need to a
 ---
 
 # Data Split
-In a typical data split, we would merge all the data into one large data set, and then split this set into 80% training and 20% test. However, for this project, we will use all major tournaments as the training data and then use COD Champs as the testing data. The data for all the majors consists of 12,630 observations. The data for COD Champs consists of 2,960 observations. This means that my 'split' is approximately a 81/19 split between train and test data.
+
 
 ---  
 
@@ -157,7 +160,7 @@ In a typical data split, we would merge all the data into one large data set, an
 
 The data below is for all of the majors throughout the season, except for COD Champs. We will reserve COD Champs to act as a test set. The raw data from each major is merged into one major dataset, further broken up into Hardpoint, SND, and Control datasets.  
 
-### SEASON MAJORS 2019 DATA
+## All Majors 2019 data
 ```{r}
 
 # CLEANING
@@ -181,26 +184,49 @@ majors2019 <- sqldf('SELECT * FROM majors2019 WHERE player IN player_numgames')
 # removes all matches where damage = 0; almost always occurs as a result of data loss
 majors2019 <- sqldf('SELECT * FROM majors2019 WHERE damage_dealt != "0"')
 
-# # converts win to numeric where 1 is Loss and 2 is Win
-# majors2019$win <- factor(majors2019$win, levels = as.character(unique(majors2019$win)))
-# majors2019$win <- as.numeric(majors2019$win)
+# changes W to 1, L to 0
+majors2019$win <- ifelse(majors2019$win == "W", 1, 0) %>%
+  as.factor()
+
+# assigning a role to each player to allow for more precise comparisons
+playerRoles <- majors2019 %>%
+  group_by(player) %>%
+  count(player, fave_weapon) %>%
+  top_n(1, n) %>%
+  mutate(role = fave_weapon) %>%
+  subset(select = -c(fave_weapon, n))
+
+# replace fav gun with corresponding role
+playerRoles$role <- str_replace(playerRoles$role, "Saug 9mm", "1")
+playerRoles$role <- str_replace(playerRoles$role, "Maddox RFB", "2")
+playerRoles$role <- str_replace(playerRoles$role, "ICR-7", "3")
+
+# making factors
+playerRoles$role <- factor(playerRoles$role)
+
+# manually adjustment for player TJHaly
+playerRoles <- playerRoles[-c(83), ]
+
+majors2019 <- dplyr::inner_join(playerRoles, majors2019, by = "player")
 
 ```
 
-**Hardpoint subset**
+A player's role is defined as a sub (1), flex (2), or an ar (3).
+
+### Hardpoint subset
 ```{r}
 
 # all 2019 hardpoint data
-hp2019 <- sqldf('SELECT player, k_d, win, kills, deaths, x, assists, damage_dealt, player_spm, hill_time_s, hill_captures, hill_defends FROM majors2019 WHERE mode == "Hardpoint"')
+hp2019 <- sqldf('SELECT player, k_d, role, win, kills, deaths, x, assists, damage_dealt, player_spm, hill_time_s, hill_captures, hill_defends, x2_piece, x3_piece, x4_piece FROM majors2019 WHERE mode == "Hardpoint"')
 hp2019 <- hp2019[order(hp2019$player),]
 
 ```
 
-**Search and Destroy subset**
+### Search and Destroy subset
 ```{r}
 
 # all 2019 SND data
-snd2019 <- sqldf('SELECT player, win, k_d, assists, damage_dealt, player_spm, bomb_sneak_defuses, bomb_plants, bomb_defuses, snd_rounds, snd_firstbloods FROM majors2019 WHERE mode == "Search & Destroy"')
+snd2019 <- sqldf('SELECT match_id, team, player, role, win, kills, deaths, k_d, assists, damage_dealt, player_spm, bomb_sneak_defuses, bomb_plants, bomb_defuses, snd_rounds, snd_firstbloods, snd_1_kill_round, snd_2_kill_round, snd_3_kill_round, snd_4_kill_round, x2_piece, x3_piece, x4_piece FROM majors2019 WHERE mode == "Search & Destroy"')
 
 # adds new column with fb/round ratio
 snd2019 <- add_column(snd2019, fb_round_ratio = snd2019$snd_firstbloods/snd2019$snd_rounds)
@@ -215,16 +241,16 @@ snd2019 <- snd2019[order(snd2019$player),]
 
 ```
 
-**Control subset**
+### Control subset
 ```{r}
 
 # all 2019 CONTROL data
-control2019 <- sqldf('SELECT player, win, k_d, assists, damage_dealt, player_spm FROM majors2019 WHERE mode == "Control"')
+control2019 <- sqldf('SELECT player, role, win, k_d, assists, damage_dealt, player_spm FROM majors2019 WHERE mode == "Control"')
 control2019 <- control2019[order(control2019$player),]
 
 ```
 
-### Cleaning Champs2019 dataset
+## Champs 2019 dataset
 ```{r}
 
 champs2019 <- champs2019 %>% clean_names(.)
@@ -236,22 +262,24 @@ champs2019 <- sqldf('SELECT * FROM champs2019 WHERE damage_dealt != "0"')
 champs2019$win <- ifelse(champs2019$win == "W", 1, 0) %>%
   as.factor()
 
+champs2019 <- dplyr::inner_join(playerRoles, champs2019, by = "player")
+
 ```
 
-**Hardpoint CHAMPS subset**
+### Hardpoint CHAMPS subset
 ```{r}
 
 # CHAMPS 2019 hardpoint data
-hpChamps <- sqldf('SELECT player, k_d, win, kills, deaths, x, assists, damage_dealt, player_spm, hill_time_s, hill_captures, hill_defends FROM champs2019 WHERE mode == "Hardpoint"')
+hpChamps <- sqldf('SELECT player, k_d, role, win, kills, deaths, x, assists, damage_dealt, player_spm, hill_time_s, hill_captures, hill_defends FROM champs2019 WHERE mode == "Hardpoint"')
 hpChamps <- hpChamps[order(hpChamps$player),]
 
 ```
 
-**Search and Destroy CHAMPS subset**
+### Search and Destroy CHAMPS subset
 ```{r}
 
 # CHAMPS 2019 SND data
-sndChamps <- sqldf('SELECT player, win, k_d, assists, damage_dealt, player_spm, bomb_sneak_defuses, bomb_plants, bomb_defuses, snd_rounds, snd_firstbloods FROM champs2019 WHERE mode == "Search & Destroy"')
+sndChamps <- sqldf('SELECT player, win, role, k_d, assists, damage_dealt, player_spm, bomb_sneak_defuses, bomb_plants, bomb_defuses, snd_rounds, snd_firstbloods FROM champs2019 WHERE mode == "Search & Destroy"')
 
 # adds new column with fb/round ratio
 sndChamps <- add_column(sndChamps, fb_round_ratio = sndChamps$snd_firstbloods/sndChamps$snd_rounds)
@@ -266,14 +294,18 @@ sndChamps <- sndChamps[order(sndChamps$player),]
 
 ```
 
-**Control CHAMPS subset**
+### Control CHAMPS subset
 ```{r}
 
 # CHAMPS 2019 CONTROL data
-controlChamps <- sqldf('SELECT player, win, k_d, assists, damage_dealt, player_spm FROM champs2019 WHERE mode == "Control"')
+controlChamps <- sqldf('SELECT player, role, win, k_d, assists, damage_dealt, player_spm FROM champs2019 WHERE mode == "Control"')
 controlChamps <- controlChamps[order(controlChamps$player),]
 
 ```
+
+
+
+
 
 ----------------------------------------------------------
 
@@ -281,20 +313,12 @@ controlChamps <- controlChamps[order(controlChamps$player),]
 
 
 
-
-
-
-
-
-
-
-
-###**RE-DOING DATA CLEANING TO INCLUDE EVERY PLAYER FROM THE TEAM ONE OBSERVATION**
+## Team Hardpoint Data
 
 ```{r}
 
 # getting all necessary data for hardpoint
-mergedhp2019 <- sqldf('SELECT match_id, team, player, kills, deaths, win, assists, damage_dealt, player_spm, hill_captures, hill_defends FROM majors2019 WHERE mode == "Hardpoint"')
+mergedhp2019 <- sqldf('SELECT match_id, team, player, role, kills, deaths, win, assists, damage_dealt, player_spm, hill_captures, hill_defends FROM majors2019 WHERE mode == "Hardpoint"')
 
 # organizing by each match
 mergedhp2019 <- mergedhp2019[order(mergedhp2019$match_id),]
@@ -303,19 +327,11 @@ mergedhp2019 <- mergedhp2019[order(mergedhp2019$match_id),]
 # calculates all the matches that have all 10 players
 match_numplayers <- count(mergedhp2019, match_id) %>% subset(., n == 10) %>% remove_cols(n)
 
-# includes all existing data for all players that have played more than 50 games (arbitrary number)
+# includes matches where all 10 players have existing data
 mergedhp2019 <- sqldf('SELECT * FROM mergedhp2019 WHERE match_id IN match_numplayers')
 
-```
-
-```{r}
-
-library(dplyr)
-library(tidyr)
-library(data.table)
 
 # merge rows so that all the players from each team are one row; expect 800 observations with about 50 variables
-
 test_mergedhp2019 <- mergedhp2019 %>%
   rename(damage = damage_dealt,
          spm = player_spm,
@@ -335,53 +351,102 @@ test_mergedhp2019 <- mergedhp2019 %>%
                      player_1, player_2, player_3, player_4, player_5)) %>%
   rename(win = win_1)
 
-test_mergedhp2019$win <- ifelse(test_mergedhp2019$win == "W", 1, 0) %>%
-  as.factor()
-
-team_mergedhp2019 <- test_mergedhp2019 %>%
-  group_by(match_id, team) %>%
-  mutate(kills = sum(kills_1, kills_2, kills_3, kills_4, kills_5),
-         deaths = sum(deaths_1, deaths_2, deaths_3, deaths_4, deaths_5),
-         kd = kills/deaths,
-         assists = sum(assists_1, assists_2, assists_3, assists_4, assists_5),
-         spm = mean(spm_1, spm_2, spm_3, spm_4, spm_5),
-         hillcaptures = sum(hillcaptures_1, hillcaptures_2, hillcaptures_3, hillcaptures_4, hillcaptures_5),
-         hilldefends = sum(hilldefends_1, hilldefends_2, hilldefends_3, hilldefends_4, hilldefends_5),
-         damage = sum(damage_1, damage_2, damage_3, damage_4, damage_5)) %>%
-  subset(select = c(win, kd, assists, spm, hillcaptures, hilldefends, damage))
+# team_mergedhp2019 <- test_mergedhp2019 %>%
+#   group_by(match_id, team) %>%
+#   mutate(kills = sum(kills_1, kills_2, kills_3, kills_4, kills_5),
+#          deaths = sum(deaths_1, deaths_2, deaths_3, deaths_4, deaths_5),
+#          kd = kills/deaths,
+#          assists = sum(assists_1, assists_2, assists_3, assists_4, assists_5),
+#          spm = mean(spm_1, spm_2, spm_3, spm_4, spm_5),
+#          hillcaptures = sum(hillcaptures_1, hillcaptures_2, hillcaptures_3, hillcaptures_4, hillcaptures_5),
+#          hilldefends = sum(hilldefends_1, hilldefends_2, hilldefends_3, hilldefends_4, hilldefends_5),
+#          damage = sum(damage_1, damage_2, damage_3, damage_4, damage_5)) %>%
+#   subset(select = c(win, kd, assists, spm, hillcaptures, hilldefends, damage))
 
 ```
 
 
 
 
+## Team SND Data
+```{r}
+
+# getting all necessary data for hardpoint
+team_snd2019 <- sqldf('SELECT match_id, k_d, role, team, player, win, assists, damage_dealt, player_spm, bomb_sneak_defuses, bomb_plants, bomb_defuses, snd_firstbloods, snd_rounds FROM snd2019')
+
+# organizing by each match
+team_snd2019 <- team_snd2019[order(team_snd2019$match_id),]
+
+# removing all matches that DON'T include all 10 players
+# calculates all the matches that have all 10 players
+match_numplayers <- count(team_snd2019, match_id) %>% subset(., n == 10) %>% remove_cols(n)
+
+# includes matches where all 10 players have existing data
+team_snd2019 <- sqldf('SELECT * FROM team_snd2019 WHERE match_id IN match_numplayers')
+
+
+# merge rows so that all the players from each team are one row; expect 800 observations with about 50 variables
+team_snd2019 <- team_snd2019 %>%
+  rename(kd = k_d,
+         damage = damage_dealt,
+         spm = player_spm,
+         fb = snd_firstbloods, 
+         rounds = snd_rounds,
+         defuses = bomb_defuses,
+         plants = bomb_plants,
+         nd = bomb_sneak_defuses) %>%
+   mutate(rn = rowid(match_id, team)) %>% 
+   pivot_wider(names_from = rn, values_from = c(win, 
+                                                player,
+                                                kd,
+                                                role,
+                                                assists, 
+                                                damage, 
+                                                spm, 
+                                                fb, 
+                                                rounds,
+                                                defuses,
+                                                plants,
+                                                nd)) %>%
+  subset(select = -c(win_2, win_3, win_4, win_5,
+                     player_1, player_2, player_3, player_4, player_5,
+                     rounds_2, rounds_3, rounds_4, rounds_5,
+                     match_id, team)) %>%
+  rename(win = win_1) %>%
+  rename(rounds = rounds_1)
 
 
 
+# team_snd2019 <- team_snd2019 %>%
+#   group_by(match_id, team) %>%
+#   mutate(kills = sum(kills_1, kills_2, kills_3, kills_4, kills_5),
+#          deaths = sum(deaths_1, deaths_2, deaths_3, deaths_4, deaths_5),
+#          kd = kills/deaths,
+#          assists = sum(assists_1, assists_2, assists_3, assists_4, assists_5),
+#          spm = mean(spm_1, spm_2, spm_3, spm_4, spm_5),
+#          damage = sum(damage_1, damage_2, damage_3, damage_4, damage_5),
+#          fb = sum(fb_1, fb_2, fb_3, fb_4, fb_5),
+#          fbratio = fb/rounds_1,
+#          plants = sum(plants_1, plants_2, plants_3, plants_4, plants_5),
+#          defuses = sum(defuses_1, defuses_2, defuses_3, defuses_4, defuses_5),
+#          nd = sum(nd_1, nd_2, nd_3, nd_4, nd_5)) %>%
+#   subset(select = c(win, role, kd, kills, deaths, assists, rounds_1, damage, fbratio, plants, defuses, nd))
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+```
 
 
 ----------------------------------------------------------  
 
+
+
+
+
 # Exploratory Data Analysis
 For my exploratory data analysis, I will be using just the season data. It will not include the Champs data.
 
-### Some basic plots: Kill/death for season
+
+
+## Kill/death for season
 ```{r, fig.height = 25, fig.width = 9}
 
 ggplot(majors2019, aes(x = reorder(player, k_d), y = k_d)) + geom_boxplot() + coord_flip(ylim = c(0, 3.5)) + labs(y = "Kill/death ratio", x = "Player", subtitle = "OVERALL Player K/D's, 2019 Season (BO4), Descending")
@@ -391,11 +456,12 @@ ggplot(control2019, aes(x = reorder(player, k_d), y = k_d)) + geom_boxplot() + c
 
 ```
 
----
 
-### Some basic plots: Search and Destroy First Bloods
+
+## Search and Destroy First Bloods
 Search and Destroy is a gamemode that has multiple rounds, where in each round, every player only has one life. A "first blood" is the first kill of the round and is usually highly influential. This a common stat that commentators and the community look at.
 
+### Firstblood average
 ```{r, fig.height = 25, fig.width = 11}
 
 # player firstblood average for SND 2019
@@ -405,6 +471,7 @@ ggplot(snd2019, aes(x = reorder(player, fb_avg), y = fb_avg)) + geom_point() + c
 ```
 
 
+### Firstblood totals
 ```{r, fig.height = 25, fig.width = 9}
 
 # player firstbloods for SND 2019
@@ -414,6 +481,7 @@ ggplot(snd2019, aes(x = reorder(player, snd_firstbloods), y = snd_firstbloods)) 
 ```
 
 
+### Firstblood/round
 ```{r, fig.height = 25, fig.width = 11}
 
 # player firstblood/round for SND 2019
@@ -422,8 +490,9 @@ ggplot(snd2019, aes(x = reorder(player, fb_round_ratio), y = fb_round_ratio)) + 
 
 ```
 
-### Some basic plots: Overall damage dealt
 
+
+## Overall Damage Dealt
 ```{r, fig.height = 25, fig.width = 11}
 
 # player damage dealt OVERALL 2019
@@ -436,8 +505,9 @@ ggplot(playerDamage, aes(x = reorder(player, damage_dealt), y = damage_dealt)) +
 
 ```
 
-### Some basic plots: Overall Score/Min (spm)
 
+
+## Overall Score/Min (spm)
 ```{r, fig.height = 25, fig.width = 11}
 
 # Overall score per minute for 2019 season
@@ -446,13 +516,14 @@ ggplot(majors2019, aes(x = reorder(player, player_spm), y = player_spm)) + geom_
 
 ```
 
-### Some basic plots: Number of wins
 
+
+## Number of Wins
 ```{r, fig.height = 25, fig.width = 11}
 
 # Overall number of wins for 2019 season
 
-playerwins <- sqldf('SELECT player, win FROM majors2019 WHERE win == "W"') # selects all the wins for each player
+playerwins <- sqldf('SELECT player, win FROM majors2019 WHERE win == "1"') # selects all the wins for each player
 playerwins <- playerwins %>% count(player) # counts the number of wins per player
 
 ggplot(playerwins, aes(x = reorder(player, n), y = n)) + geom_bar(stat = 'identity') + coord_flip() + labs(y = "Number of Wins", x = "Player", subtitle = "OVERALL Number of Wins per Player, 2019 Season (BO4), Descending")
@@ -475,173 +546,19 @@ The number of wins appears to follow a normal distribution. The left side of the
 
 
 
-
-
------------------------------------------------------------------------------------------
-**BREAK FROM EDA**
-
-
-
-
-
-
-### Find correlation between variables
-**I will begin by working with hardpoint data. In order to do this, I will need to compile each players' statistics into one column.** 
-
-**I will be working with a new dataset, just so I don't mess up the original dataset.**
-```{r}
-
-hp2019_mb <- hp2019
-
-```
-
-**Number of wins for each player.**
-```{r}
-
-hp_playerwins <- sqldf('SELECT player, win FROM hp2019_mb WHERE win == "W"') # selects all the wins for each player
-hp_playerwins <- hp_playerwins %>% count(player) # counts wins per players
-
-```
-
-**Attempting to use averages to predict win percentage of each player.**
-```{r}
-
-hp_player_numgames <- sqldf('SELECT player, win FROM hp2019_mb')
-hp_player_numgames <- hp_player_numgames %>% count(player) # calculates the number of games played per player
-
-hp_player_winrate <- merge(hp_playerwins, hp_player_numgames, by = c("player")) %>%
-  mutate(winrate = n.x/n.y) %>%
-  subset(., select = -c(n.x, n.y))
-
-hp2019_averages <- hp2019_mb %>%
-  group_by(player) %>%
-  mutate(avg_kd = mean(k_d)) %>%
-  mutate(avg_spm = mean(player_spm)) %>%
-  mutate(avg_assists = mean(assists)) %>%
-  mutate(avg_damagedealt = mean(damage_dealt)) %>%
-  mutate(avg_hilltime = mean(hill_time_s)) %>%
-  mutate(avg_captures = mean(hill_captures)) %>%
-  mutate(avg_defends = mean(hill_defends)) %>%
-  subset(., select = -c(kills, deaths, x, k_d, assists, damage_dealt, hill_time_s, hill_captures, hill_defends, player_spm, win)) %>%
-  unique()
-
-# creates a final dataset for hardpoint where each player only has one row, which includes the averages of all of his statistics
-hp2019_averages <- merge(hp_player_winrate, hp2019_averages, by = c("player"))
-
-```
-
-**Attempting to use totals to predict number of wins of each player.**
-```{r}
-
-hp2019_totals <- hp2019_mb %>%
-  group_by(player) %>%
-  mutate(tot_kills = sum(kills)) %>%
-  mutate(tot_deaths = sum(deaths)) %>%
-  mutate(tot_x = sum(x)) %>%
-  mutate(tot_spm = sum(player_spm)) %>%
-  mutate(tot_assists = sum(assists)) %>%
-  mutate(tot_damagedealt = sum(damage_dealt)) %>%
-  mutate(tot_hilltime = sum(hill_time_s)) %>%
-  mutate(tot_captures = sum(hill_captures)) %>%
-  mutate(tot_defends = sum(hill_defends)) %>%
-  subset(., select = -c(k_d, kills, deaths, x, assists, damage_dealt, hill_time_s, hill_captures, hill_defends, player_spm, win)) %>%
-  unique()
-
-# creates a final dataset for hardpoint where each player only has one row, which includes the averages of all of his statistics
-hp2019_totals <- merge(hp_playerwins, hp2019_totals, by = c("player"))
-
-```
-
-### WORKING WITH AVERAGES / WIN RATE
-**Correlation plots and matrix for AVERAGES**
-```{r}
-
-pairs(winrate ~ avg_kd + avg_spm + avg_damagedealt + avg_assists + avg_hilltime + avg_captures + avg_defends, data = hp2019_averages)
-
-corr_averages_hp_2019 <- hp2019_averages %>%
-  subset(., select = -c(player))
-
-cor(corr_averages_hp_2019)
-
-```
-
-**Regression model for Hardpoint for AVERAGES**
-```{r}
-
-winrate <- lm(winrate ~ avg_kd + avg_spm + avg_assists + avg_damagedealt + avg_hilltime + avg_captures + avg_defends, data = hp2019_averages)
-summary(winrate)
-
-```
-
-**Relationship for AVERAGES**
-```{r}
-
-plot(hp2019_averages$winrate, hp2019_averages$avg_kd, xlab = "Win Rate", ylab = "Average K/D",
-     title("Relationship between Win Rate and K/D"))
-
-```
-
-
-### WORKING WITH TOTALS / NUM OF WINS
-
-**Correlation plots and matrix for TOTALS**
-```{r}
-
-# Equivalent with a formula
-pairs(n ~ tot_kills + tot_deaths + tot_spm + tot_assists + tot_damagedealt + tot_hilltime + tot_captures + tot_defends, data = hp2019_totals)
-
-corr_hp2019_totals <- hp2019_totals %>%
-  subset(., select = -c(player))
-
-cor(corr_hp2019_totals)
-
-```
-
-**Relationship for TOTALS**
-```{r}
-
-plot(hp2019_totals$n, hp2019_totals$tot_x, xlab = "Number of Wins", ylab = "Total Kills - Total Deaths",
-     title("Relationship between Number of Wins and Kill and Death Discrepancy"))
-
-```
-
-**Regression model for Hardpoint for TOTALS**
-```{r}
-
-lm_totals <- lm(n ~ tot_kills + tot_deaths + tot_spm + tot_assists + tot_damagedealt + tot_hilltime + tot_captures + tot_defends, data = hp2019_totals)
-summary(lm_totals)
-
-```
-
-
-
-
-
-
-
-
-
-
 -----------------------------------------------------------------------
 
 
-### MODEL 1: DECISION TREE
 
-**Now let's try a different approach, essentially from scratch. Let's try to predict a win (YES) or a loss (NO) using a player's data. DECISION TREE METHOD** Most likely, I should do this by gamemode. Otherwise, certain columns will be empty since some of the data is not relevant in different gamemodes.
 
+
+# Models: Hardpoint
+I will be trying to predict whether an individual player will win or lose a game based on his statistics in the given game.
+
+**Splitting Data:**
 ```{r}
 
 hp2019_wl <- hp2019
-
-# changes W to 1, L to 0
-hp2019_wl$win <- ifelse(hp2019_wl$win == "W", 1, 0) %>%
-  as.factor()
-
-```
-
-### SPLITTING DATA
-
-```{r}
 
 set.seed(3068)
 
@@ -661,171 +578,35 @@ prop.table(table(hp2019_train$win))
 
 ```
 
+## Model 1: Decision Tree
+
 Creating a general decision tree specification using rpart:
 ```{r}
 
-tree_spec <- decision_tree() %>%
+hp_tree_spec <- decision_tree() %>%
   set_engine("rpart")
 
-class_tree_spec <- tree_spec %>%
+hp_class_tree_spec <- hp_tree_spec %>%
   set_mode("classification")
 
-class_tree_fit <- class_tree_spec %>%
-  fit(win ~ k_d + assists + damage_dealt + player_spm + hill_time_s + hill_captures + hill_defends, data = hp2019_train)
+hp_class_tree_fit <- hp_class_tree_spec %>%
+  fit(win ~ k_d + assists + damage_dealt + player_spm + hill_time_s + hill_captures + hill_defends + x2_piece + x3_piece + x4_piece, data = hp2019_train)
 
-class_tree_fit %>%
+hp_class_tree_fit %>%
   extract_fit_engine() %>%
   rpart.plot()
 
 ```
 
-Checking confusion matrix and accuracy of the train data:
+Checking confusion matrix and accuracy of the **train** data:
 ```{r}
 
-augment(class_tree_fit, new_data = hp2019_train) %>%
+augment(hp_class_tree_fit, new_data = hp2019_train) %>%
   conf_mat(truth = win, estimate = .pred_class)
 
-augment(class_tree_fit, new_data = hp2019_train) %>%
+hp_dt_accuracy <- augment(class_tree_fit, new_data = hp2019_train) %>%
   accuracy(truth = win, estimate = .pred_class)
-
-```
-
-Checking confusion matrix and accuracy of the test data:
-```{r}
-
-augment(class_tree_fit, new_data = hp2019_test) %>%
-  conf_mat(truth = win, estimate = .pred_class)
-
-augment(class_tree_fit, new_data = hp2019_test) %>%
-  accuracy(truth = win, estimate = .pred_class)
-
-```
-
-Checking confusion matrix and accuracy of the Champs data:
-```{r}
-
-augment(class_tree_fit, new_data = hpChamps) %>%
-  conf_mat(truth = win, estimate = .pred_class)
-
-augment(class_tree_fit, new_data = hpChamps) %>%
-  accuracy(truth = win, estimate = .pred_class)
-
-```
-
-```{r}
-
-class_tree_wf <- workflow() %>%
-  add_model(class_tree_spec %>% set_args(cost_complexity = tune())) %>%
-  add_formula(win ~ .)
-
-```
-
-```{r}
-
-set.seed(3068)
-hp2019_fold <- vfold_cv(hp2019_train)
-
-param_grid <- grid_regular(cost_complexity(range = c(-3, -1)), levels = 10)
-
-tune_res <- tune_grid(
-  class_tree_wf, 
-  resamples = hp2019_fold, 
-  grid = param_grid, 
-  metrics = metric_set(accuracy)
-)
-
-```
-
-```{r}
-
-autoplot(tune_res)
-
-```
-
-```{r}
-
-best_complexity <- select_best(tune_res)
-
-class_tree_final <- finalize_workflow(class_tree_wf, best_complexity)
-
-class_tree_final_fit <- fit(class_tree_final, data = hp2019_train)
-
-```
-
-```{r}
-
-class_tree_final_fit %>%
-  extract_fit_engine() %>%
-  rpart.plot()
-
-```
-
-
-
-
------------------------------------------------------------------------
-
-
-
-
-BASED ON HW'S. NEEDS A LOT OF WORK
-
-### MODEL: Decision Tree Model
-
-I will also be using a recipe, with split, stratified, and folded data. Similar to example project.
-
-
-```{r}
-
-recipe_hp <- recipe(win ~ k_d + assists + damage_dealt + player_spm + hill_time_s + hill_captures + hill_defends, data = hp2019_train) %>%
-  step_dummy(all_nominal_predictors()) %>%
-  step_normalize(all_predictors())
-
-```
-
-
-
-
-------------------------------------------------------------------------
-
-
-### MODEL 2: BAGGING
-
-```{r}
-
-bagging_spec <- rand_forest(mtry = .cols()) %>%
-  set_engine("randomForest", importance = TRUE) %>%
-  set_mode("classification")
-
-```
-
-```{r}
-
-bagging_fit <- fit(bagging_spec, win ~ k_d + assists + damage_dealt + player_spm + hill_time_s + hill_captures + hill_defends, data = hp2019_train)
-
-```
-
-ERROR
-```{r}
-
-augment(bagging_fit, new_data = hp2019_test) %>%
-  rmse(truth = win, estimate = .pred)
-
-```
-
-ERROR
-```{r}
-
-augment(bagging_fit, new_data = hp2019_test) %>%
-  ggplot(aes(win, .pred)) +
-  geom_abline() +
-  geom_point(alpha = 0.5)
-
-```
-
-```{r}
-
-vip(bagging_fit)
+hp_dt_accuracy
 
 ```
 
@@ -833,107 +614,203 @@ vip(bagging_fit)
 
 --------------------------------------------
 
-LAB 7
 
 
-### MODEL 3: RANDOM FOREST
+## Model 2: Random Forest
 
 ```{r}
 
-rf_spec <- rand_forest(mtry = 6) %>%
-  set_engine("randomForest", importance = TRUE) %>%
+# library(randomForest)
+# library(datasets)
+# library(caret)
+
+set.seed(306)
+
+hp_rf <- randomForest(win ~ k_d + assists + damage_dealt + player_spm + hill_time_s + hill_captures + hill_defends + x2_piece + x3_piece + x4_piece, data = hp2019_train, ntree = 500)
+
+print(hp_rf)
+
+hp_rfAccuracy <- (1300 + 1323) / (1300 + 1323 + 457 + 471)
+hp_rfAccuracy
+
+```
+
+```{r}
+
+importance(hp_rf)
+varImpPlot(hp_rf)
+
+
+
+hp_pred1 = predict(hp_rf, type = "prob")
+
+library(ROCR)
+
+hp_perf = prediction(hp_pred1[,2], hp2019_train$win)
+
+# 1. Area under curve
+hp_auc = performance(hp_perf, "auc")
+hp_auc
+
+# 2. True Positive and Negative Rate
+hp_pred3 = performance(hp_perf, "tpr","fpr")
+
+# 3. Plot the ROC curve
+plot(hp_pred3, main="ROC Curve for Random Forest", col=2, lwd=2)
+abline(a=0, b=1, lwd=2, lty=2, col="gray")
+
+
+plot(hp_rf)
+
+```
+
+
+----------
+
+
+## Model 3: Logistic Regression
+
+Recipe, Engine, and Workflow:
+```{r}
+
+hp_recipe <- recipe(win ~ k_d + assists + damage_dealt + player_spm + hill_time_s + hill_captures + hill_defends + x2_piece + x3_piece + x4_piece, data = hp2019_train)
+
+hp_log_reg <- logistic_reg() %>% 
+  set_engine("glm") %>% 
   set_mode("classification")
 
-```
+hp_log_wkflow <- workflow() %>% 
+  add_model(hp_log_reg) %>% 
+  add_recipe(hp_recipe)
 
-```{r}
+hp_log_fit <- fit(hp_log_wkflow, hp2019_train)
 
-rf_fit <- fit(rf_spec, win ~ k_d + assists + damage_dealt + player_spm + hill_time_s + hill_captures + hill_defends, data = hp2019_train)
-
-```
-
-```{r}
-
-augment(rf_fit, new_data = hp2019_train) %>%
-  rmse(truth = win, estimate = k_d)
+hp_log_fit %>% 
+  tidy()
 
 ```
 
+Assessing Model Performance:
 ```{r}
 
-vip(rf_fit)
+predict(hp_log_fit, new_data = hp2019_train, type = "prob")
+
+augment(hp_log_fit, new_data = hp2019_train) %>%
+  conf_mat(truth = win, estimate = .pred_class)
+
+augment(hp_log_fit, new_data = hp2019_train) %>%
+  conf_mat(truth = win, estimate = .pred_class) %>%
+  autoplot(type = "heatmap")
 
 ```
 
-
-----------------------------
-
-
-INTERNET GEEKSFORGEEKS
-
-
-### MODEL 3: RANDOM FOREST
-
-
+Checking accuracy:
 ```{r}
 
-win.rf <- randomForest(win ~ k_d + 
-                         assists + 
-                         damage_dealt + 
-                         player_spm + 
-                         hill_time_s + 
-                         hill_captures +
-                         hill_defends, 
-                       data = hp2019_train,
-                       importance = TRUE, 
-                       proximity = TRUE)
-
-print(win.rf)
-
-```
-
-```{r}
-
-plot(win.rf)
+hp_log_reg_acc <- augment(hp_log_fit, new_data = hp2019_train) %>%
+  accuracy(truth = win, estimate = .pred_class)
+hp_log_reg_acc
 
 ```
 
 
 
+-----------
 
-
-
-
-
-
-
-
-
---------------------------
-
-# TRYING DECISION TREE ON MERGED TEAM DATA
-
-### SPLITTING DATA
+## Model 4: Support Vector Machine
 
 ```{r}
 
-set.seed(3068)
+hp_svm_rbf_spec <- svm_rbf() %>%
+  set_mode("classification") %>%
+  set_engine("kernlab")
 
-mergedhp <- team_mergedhp2019 %>%
+hp_svm_rbf_fit <- svm_rbf_spec %>%
+  fit(win ~ k_d + assists + damage_dealt + player_spm + 
+        hill_time_s + hill_captures + hill_defends + 
+        x2_piece + x3_piece + x4_piece, 
+      data = hp2019_train)
+
+augment(hp_svm_rbf_fit, new_data = hp2019_train) %>%
+  conf_mat(truth = win, estimate = .pred_class)
+
+hp_svmAccuracy <- augment(hp_svm_rbf_fit, new_data = hp2019_train) %>%
+  accuracy(truth = win, estimate = .pred_class)
+hp_svmAccuracy
+```
+
+
+----------
+
+## Comparing Model Performance
+
+```{r}
+
+hp_accuracies <- c(hp_dt_accuracy$.estimate,
+                    hp_rfAccuracy,
+                    hp_log_reg_acc$.estimate, 
+                    hp_svmAccuracy$.estimate)
+hp_accuracies
+
+```
+
+As we can see from this, the SVM appears to have the highest accuracy.
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+----------------------------------------------------------------------------
+
+
+# Models: Search and Destroy
+
+**Splitting Data:**
+```{r}
+
+set.seed(1)
+
+snd2019_split <- snd2019 %>%
   initial_split(prop = 0.8, strata = "win")
 
-mergedhp_train <- training(mergedhp)
-mergedhp_test <- testing(mergedhp)
+snd2019_train <- training(snd2019_split)
+snd2019_test <- testing(snd2019_split)
 
 
-head(mergedhp_train)
+head(snd2019_train)
 
-dim(mergedhp_train)
-dim(mergedhp_test)
+dim(snd2019_train)
+dim(snd2019_test)
 
-prop.table(table(mergedhp_train$win))
+prop.table(table(snd2019_train$win))
 
 ```
+
+
+
+------------
+
+
+
+## Model 1: Decision Tree
 
 Creating a general decision tree specification using rpart:
 ```{r}
@@ -945,7 +822,12 @@ class_tree_spec <- tree_spec %>%
   set_mode("classification")
 
 class_tree_fit <- class_tree_spec %>%
-  fit(win ~ ., data = mergedhp_train)
+  fit(win ~ k_d + role + assists + damage_dealt + 
+        player_spm + bomb_sneak_defuses + bomb_plants +
+        bomb_defuses + fb_round_ratio + snd_firstbloods + 
+        snd_1_kill_round + snd_2_kill_round + snd_3_kill_round + 
+        snd_4_kill_round + x2_piece + x3_piece + x4_piece, 
+      data = snd2019_train)
 
 class_tree_fit %>%
   extract_fit_engine() %>%
@@ -953,47 +835,176 @@ class_tree_fit %>%
 
 ```
 
-Checking confusion matrix and accuracy of the train data:
+Checking confusion matrix and accuracy of the **train** data:
 ```{r}
 
-augment(class_tree_fit, new_data = mergedhp_train) %>%
+augment(class_tree_fit, new_data = snd2019_train) %>%
   conf_mat(truth = win, estimate = .pred_class)
 
-augment(class_tree_fit, new_data = mergedhp_train) %>%
+class_tree <- augment(class_tree_fit, new_data = snd2019_train) %>%
   accuracy(truth = win, estimate = .pred_class)
-
-```
-
-Checking confusion matrix and accuracy of the test data:
-```{r}
-
-augment(class_tree_fit, new_data = mergedhp_test) %>%
-  conf_mat(truth = win, estimate = .pred_class)
-
-augment(class_tree_fit, new_data = mergedhp_test) %>%
-  accuracy(truth = win, estimate = .pred_class)
+class_tree
 
 ```
 
 
 
+-----------------------------
+
+
+## Model 2: Random Forest
+
+```{r}
+
+# library(randomForest)
+# library(datasets)
+# library(caret)
+
+set.seed(306)
+
+rf <- randomForest(win ~ k_d + role + assists + damage_dealt + 
+        player_spm + bomb_sneak_defuses + bomb_plants +
+        bomb_defuses + fb_round_ratio + snd_firstbloods + 
+        snd_1_kill_round + snd_2_kill_round + snd_3_kill_round + 
+        snd_4_kill_round + x2_piece + x3_piece + x4_piece, 
+      data = snd2019_train,
+      ntree = 500)
+
+print(rf)
+
+rfAccuracy <- (1032 + 930) / (1032 + 930 + 360 + 469)
+rfAccuracy
+
+```
+
+```{r}
+
+importance(rf)
+varImpPlot(rf)
 
 
 
+pred1=predict(rf,type = "prob")
+
+library(ROCR)
+
+perf = prediction(pred1[,2], snd2019_train$win)
+
+# 1. Area under curve
+auc = performance(perf, "auc")
+auc
+
+# 2. True Positive and Negative Rate
+pred3 = performance(perf, "tpr","fpr")
+
+# 3. Plot the ROC curve
+plot(pred3,main="ROC Curve for Random Forest",col=2,lwd=2)
+abline(a=0,b=1,lwd=2,lty=2,col="gray")
+
+```
 
 
 
+----------
 
 
 
+## Model 3: Logistic Regression
+
+Recipe, Engine, and Workflow:
+```{r}
+
+snd_recipe <- recipe(win ~ k_d + role + assists + damage_dealt + 
+        player_spm + bomb_sneak_defuses + bomb_plants +
+        bomb_defuses + fb_round_ratio + snd_firstbloods + 
+        snd_1_kill_round + snd_2_kill_round + snd_3_kill_round + 
+        snd_4_kill_round + x2_piece + x3_piece + x4_piece, 
+      data = snd2019_train)
+
+log_reg <- logistic_reg() %>% 
+  set_engine("glm") %>% 
+  set_mode("classification")
+
+log_wkflow <- workflow() %>% 
+  add_model(log_reg) %>% 
+  add_recipe(snd_recipe)
+
+log_fit <- fit(log_wkflow, snd2019_train)
+
+log_fit %>% 
+  tidy()
+
+```
+
+Assessing Model Performance:
+```{r}
+
+predict(log_fit, new_data = snd2019_train, type = "prob")
+
+augment(log_fit, new_data = snd2019_train) %>%
+  conf_mat(truth = win, estimate = .pred_class)
+
+augment(log_fit, new_data = snd2019_train) %>%
+  conf_mat(truth = win, estimate = .pred_class) %>%
+  autoplot(type = "heatmap")
+
+```
+
+Checking accuracy:
+```{r}
+
+log_reg_acc <- augment(log_fit, new_data = snd2019_train) %>%
+  accuracy(truth = win, estimate = .pred_class)
+log_reg_acc
+
+```
+
+
+----------
+
+
+## Model 4: Support Vector Machine
+
+```{r}
+
+svm_rbf_spec <- svm_rbf() %>%
+  set_mode("classification") %>%
+  set_engine("kernlab")
+
+svm_rbf_fit <- svm_rbf_spec %>%
+  fit(win ~ k_d + role + assists + damage_dealt + 
+        player_spm + bomb_sneak_defuses + bomb_plants +
+        bomb_defuses + fb_round_ratio + snd_firstbloods + 
+        snd_1_kill_round + snd_2_kill_round + snd_3_kill_round + 
+        snd_4_kill_round + x2_piece + x3_piece + x4_piece, 
+      data = snd2019_train)
+
+augment(svm_rbf_fit, new_data = snd2019_train) %>%
+  conf_mat(truth = win, estimate = .pred_class)
+
+svmAccuracy <- augment(svm_rbf_fit, new_data = snd2019_train) %>%
+  accuracy(truth = win, estimate = .pred_class)
+svmAccuracy
+```
+
+
+----------
 
 
 
+## Comparing Model Performance
 
+```{r}
 
+snd_accuracies <- c(class_tree$.estimate,
+                    rfAccuracy,
+                    log_reg_acc$.estimate, 
+                    svmAccuracy$.estimate)
+snd_accuracies
 
+```
 
-
+As we can see from this, the SVM model appears to have the highest accuracy.
 
 
 
