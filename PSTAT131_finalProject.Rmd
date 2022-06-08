@@ -91,6 +91,7 @@ library(datasets)
 library(caret)
 library(ROCR)
 library(tune)
+library(kknn)
 
 ```
 
@@ -616,12 +617,14 @@ prop.table(table(hp2019_train$win))
 
 ```
 
+---
+
 ## Creating a recipe and folding:
 The begin with my Hardpoint models, I made a recipe that contained all of my predictor variables. I then normalized all of my predictor variables.
 
 ```{r}
 
-hp_test_recipe <- recipe(win ~ k_d + assists + damage_dealt + 
+hp_recipe <- recipe(win ~ k_d + assists + damage_dealt + 
                         player_spm + hill_time_s + hill_captures + 
                         hill_defends + x2_piece + x3_piece + x4_piece, 
                       data = hp2019_train) %>%
@@ -635,49 +638,6 @@ After making my recipe, I decided to fold my data with 10 folds and 5 repeats.
 hp_train_folds <- vfold_cv(hp2019_train, v = 10, repeats = 5)
 
 ```
-
-## Model 2: Random Forest TEST TEST TEST
-
-Now it was time to prepare my model. I tuned min_n and mtry, set my mode to "classification", and set my engine to "ranger." My workflow was set up to use both my Hardpoint recipe and my Hardpoint random forest model.
-```{r}
-
-hp_rf_model <- rand_forest(min_n = tune(),
-                        mtry = tune(),
-                        mode = "classification") %>%
-  set_engine("ranger")
-
-hp_rf_workflow <- workflow() %>%
-  add_model(hp_rf_model) %>%
-  add_recipe(hp_test_recipe)
-
-```
-
-Next, I set up parameters for the grid that I was going to make. The parameters were set the Hardpoint random forest model and the mtry range was set from 1 to 7. This mtry limit was set slightly below the maximum number of predictors.
-```{r}
-
-hp_rf_parameters <- hardhat::extract_parameter_set_dials(hp_rf_model) %>%
-  update(mtry = mtry(range = c(2, 10)))
-
-hp_rf_grid <- grid_regular(hp_rf_parameters, levels = 2)
-
-```
-
-Then, I ran my model by tuning and fitting, using my folded data and my grid. 
-```{r}
-
-hp_rf_tune <- hp_rf_workflow %>%
-  tune_grid(resamples = hp_train_folds,
-            grid = hp_rf_grid)
-
-```
-
-The last thing to do was to plot my tuned model.
-```{r}
-
-autoplot(hp_rf_tune, metric = "accuracy")
-
-```
-
 
 --------------
 
@@ -703,7 +663,7 @@ Fitting the model:
 ```{r}
 
 hp_class_tree_fit <- hp_class_tree_spec %>%
-  fit(win ~ k_d + role + assists + damage_dealt + 
+  fit(win ~ k_d + assists + damage_dealt + 
                         player_spm + hill_time_s + hill_captures + 
                         hill_defends + x2_piece + x3_piece + x4_piece, 
                       data = hp2019_train)
@@ -736,7 +696,7 @@ Creating a workflow that is ready to tune cost complexity:
 
 hp_class_tree_wf <- workflow() %>%
   add_model(hp_class_tree_spec %>% set_args(cost_complexity = tune())) %>%
-  add_recipe(hp_test_recipe)
+  add_recipe(hp_recipe)
 
 ```
 
@@ -789,7 +749,7 @@ hp_class_tree_final_fit %>%
 Checking the accuracy of the final model:
 ```{r}
 
-augment(hp_class_tree_final_fit, new_data = hp2019_train) %>%
+hp_tuned_dt_accuracy <- augment(hp_class_tree_final_fit, new_data = hp2019_train) %>%
   accuracy(truth = win, estimate = .pred_class)
 
 ```
@@ -805,98 +765,113 @@ As we can see, the final accuracy for the tuned model was slightly higher with a
 
 ## Model 2: Random Forest
 
+Now it was time to prepare my model. I tuned min_n and mtry, set my mode to "classification", and set my engine to "ranger." My workflow was set up to use both my Hardpoint recipe and my Hardpoint random forest model.
 ```{r}
 
-hp_rf <- randomForest(win ~ k_d + role + assists + damage_dealt + 
-                        player_spm + hill_time_s + hill_captures + 
-                        hill_defends + x2_piece + x3_piece + x4_piece, 
-                      data = hp2019_train, 
-                      ntree = 500)
+hp_rf_model <- rand_forest(min_n = tune(),
+                        mtry = tune(),
+                        mode = "classification") %>%
+  set_engine("ranger")
 
-print(hp_rf)
-
-hp_rfAccuracy <- (1304 + 1313) / (1304 + 1313 + 467 + 467)
-hp_rfAccuracy
+hp_rf_workflow <- workflow() %>%
+  add_model(hp_rf_model) %>%
+  add_recipe(hp_recipe)
 
 ```
 
+Next, I set up parameters for the grid that I was going to make. The parameters were set the Hardpoint random forest model and the mtry range was set from 1 to 7. This mtry limit was set slightly below the maximum number of predictors.
 ```{r}
 
-importance(hp_rf)
-varImpPlot(hp_rf)
+hp_rf_parameters <- hardhat::extract_parameter_set_dials(hp_rf_model) %>%
+  update(mtry = mtry(range = c(2, 10)))
 
-
-
-hp_pred1 = predict(hp_rf, type = "prob")
-
-hp_perf = prediction(hp_pred1[,2], hp2019_train$win)
-
-# 1. Area under curve
-hp_auc = performance(hp_perf, "auc")
-hp_auc
-
-# 2. True Positive and Negative Rate
-hp_pred3 = performance(hp_perf, "tpr","fpr")
-
-# 3. Plot the ROC curve
-plot(hp_pred3, main="ROC Curve for Random Forest", col=2, lwd=2)
-abline(a=0, b=1, lwd=2, lty=2, col="gray")
-
-
-
-plot(hp_rf)
+hp_rf_grid <- grid_regular(hp_rf_parameters, levels = 2)
 
 ```
 
+Then, I ran my model by tuning and fitting, using my folded data and my grid. 
+```{r}
+
+hp_rf_tune <- hp_rf_workflow %>%
+  tune_grid(resamples = hp_train_folds,
+            grid = hp_rf_grid)
+
+```
+
+The last thing to do was to plot my tuned model.
+```{r}
+
+autoplot(hp_rf_tune)
+
+```
+
+As we can see from the above plot, it appears that as we add more predictor variables, the accuracy tends to decrease. I hypothesize that this is because k_d is the most significant predictor by far. All of the other predictors are much less significant, and actually worsen the model by overfitting. However, the decrease in accuracy is very small in general.  
+
+Checking the accuracy of the final model:
+```{r}
+
+hp_rf_tuned_accuracy <- show_best(hp_rf_tune, metric = "accuracy")
+hp_rf_tuned_accuracy
+hp_rf_tuned_accuracy[1,5]
+
+```
+
+We had the highest accuracy of 0.7427786 with a minimum node size of 40 and an mtry of 2.
 
 ----------
 
 
 ## Model 3: Logistic Regression
 
-Recipe, Engine, and Workflow:
+First, I needed to set up my model. I set my engine to "glm" for logistic regression and set the mode to "classification."
 ```{r}
-
-hp_recipe <- recipe(win ~ k_d + role + assists + damage_dealt + 
-                        player_spm + hill_time_s + hill_captures + 
-                        hill_defends + x2_piece + x3_piece + x4_piece, 
-                      data = hp2019_train)
-
 hp_log_reg <- logistic_reg() %>% 
   set_engine("glm") %>% 
   set_mode("classification")
+```
 
+Setting up workflow with the model I created last step, as well as the recipe that I created earlier.
+```{r}
 hp_log_wkflow <- workflow() %>% 
   add_model(hp_log_reg) %>% 
   add_recipe(hp_recipe)
-
-hp_log_fit <- fit(hp_log_wkflow, hp2019_train)
-
-hp_log_fit %>% 
-  tidy()
-
 ```
 
-Assessing Model Performance:
+Fit the model to the folded data:
+```{r}
+hp_log_fit <- fit_resamples(hp_log_wkflow, hp_train_folds)
+```
+
+Collecting metrics based on the folded data:
+```{r}
+collect_metrics(hp_log_fit)
+```
+
+Fitting the model to the whole dataset, not just the folds:
+```{r}
+hp_log_fit_train <- fit(hp_log_wkflow, hp2019_train)
+```
+
+Assessing model performance with the training data:
 ```{r}
 
-predict(hp_log_fit, new_data = hp2019_train, type = "prob")
+predict(hp_log_fit_train, new_data = hp2019_train, type = "prob")
 
-augment(hp_log_fit, new_data = hp2019_train) %>%
+augment(hp_log_fit_train, new_data = hp2019_train) %>%
   conf_mat(truth = win, estimate = .pred_class)
 
-augment(hp_log_fit, new_data = hp2019_train) %>%
+augment(hp_log_fit_train, new_data = hp2019_train) %>%
   conf_mat(truth = win, estimate = .pred_class) %>%
   autoplot(type = "heatmap")
 
 ```
 
-Checking accuracy:
+Checking accuracy with the training data:
 ```{r}
 
-hp_log_reg_acc <- augment(hp_log_fit, new_data = hp2019_train) %>%
+hp_log_reg_accuracy <- augment(hp_log_fit_train, new_data = hp2019_train) %>%
   accuracy(truth = win, estimate = .pred_class)
-hp_log_reg_acc
+hp_log_reg_accuracy
 
 ```
 
@@ -904,27 +879,50 @@ hp_log_reg_acc
 
 -----------
 
-## Model 4: Support Vector Machine
 
+## Model 4: K Nearest Neighbors
+
+Setting up the model. I will be tuning "neighbors."
 ```{r}
-
-hp_svm_rbf_spec <- svm_rbf() %>%
-  set_mode("classification") %>%
-  set_engine("kernlab")
-
-hp_svm_rbf_fit <- hp_svm_rbf_spec %>%
-  fit(win ~ k_d + role + assists + damage_dealt + 
-                        player_spm + hill_time_s + hill_captures + 
-                        hill_defends + x2_piece + x3_piece + x4_piece, 
-                      data = hp2019_train)
-
-augment(hp_svm_rbf_fit, new_data = hp2019_train) %>%
-  conf_mat(truth = win, estimate = .pred_class)
-
-hp_svmAccuracy <- augment(hp_svm_rbf_fit, new_data = hp2019_train) %>%
-  accuracy(truth = win, estimate = .pred_class)
-hp_svmAccuracy
+hp_knn_model <- 
+  nearest_neighbor(
+    neighbors = tune(),
+    mode = "classification") %>% 
+  set_engine("kknn")
 ```
+
+Next, I set up the workflow.
+```{r}
+hp_knn_workflow <- workflow() %>% 
+  add_model(hp_knn_model) %>% 
+  add_recipe(hp_recipe)
+```
+
+I then set up the tuning grid.
+```{r}
+hp_knn_parameters <- hardhat::extract_parameter_set_dials(hp_knn_model)
+hp_knn_grid <- grid_regular(hp_knn_parameters, levels = 2)
+```
+
+Fitting and tuning my model:
+```{r}
+hp_knn_tune <- hp_knn_workflow %>%
+  tune_grid(resamples = hp_train_folds,
+            grid = hp_knn_grid)
+```
+
+Plotting the model:
+```{r}
+autoplot(hp_knn_tune, metric = "accuracy")
+```
+This plot shows us that as the number of neighbors increases, there is also an increase in accuracy.
+
+Testing the accuracy of the model:
+```{r}
+hp_knn_tuned_accuracy <- show_best(hp_knn_tune, metric = "accuracy")
+hp_knn_tuned_accuracy
+```
+As we can see, the model performs at its best with 15 neighbors, resulting in an accuracy of 0.7094363.
 
 
 ----------
@@ -933,15 +931,15 @@ hp_svmAccuracy
 
 ```{r}
 
-hp_accuracies <- c(hp_dt_accuracy$.estimate,
-                    hp_rfAccuracy,
-                    hp_log_reg_acc$.estimate, 
-                    hp_svmAccuracy$.estimate)
+hp_accuracies <- c(hp_tuned_dt_accuracy$.estimate,
+                    hp_rf_tuned_accuracy[1,5],
+                    hp_log_reg_accuracy$.estimate, 
+                    hp_knn_tuned_accuracy[1, 4])
 hp_accuracies
 
 ```
 
-As we can see from this, the SVM appears to have the highest accuracy.
+As we can see from this, the BLANK appears to have the highest accuracy.
 
 
 
