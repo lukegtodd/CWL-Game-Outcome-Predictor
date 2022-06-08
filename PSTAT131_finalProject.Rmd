@@ -17,7 +17,7 @@ library(vembedr)
 
 # Introduction
 
-The purpose of the project is to provide an easy, consumable form of skill rating for professional Call of Duty players. This could be used as a descriptive statistic, but it can also be used to guess the winner of the largest tournament of the year, Call of Duty Champs.
+The purpose of this project is to take a player's indiviual statistics and attempt to determine whether they won or lost that game. I will then use this predictive capability and try to guess the winner of the largest tournament of the year, Call of Duty Champs.
 
 --- 
 
@@ -59,7 +59,15 @@ embed_url("https://www.youtube.com/watch?v=VQC0aZuGBFs&t=2740s") %>%
 
 ---  
 
+# Why is this model useful?
+
+This model is useful because it will allow us to see whether a player's statistics may have contributed to a win or not. As a fan of COD Competitive, there is a lot of debate on statistics and it's importance, so I wanted to look directly at the impact of a player's statistics.
+
+---
+
 # Load Packages
+
+All the packages are loaded below.
 
 ```{r, include=FALSE, message = FALSE}
 
@@ -78,6 +86,11 @@ library(randomForest)
 library(dplyr)
 library(tidyr)
 library(data.table)
+library(randomForest)
+library(datasets)
+library(caret)
+library(ROCR)
+library(tune)
 
 ```
 
@@ -107,47 +120,66 @@ champs2019 <- read_csv(url("https://raw.githubusercontent.com/Activision/cwl-dat
 
 # What data are we concerned with?
 
-In order to assign an overall score to each individual player, we will need to address Hardpoint, Search and Destroy, and the Control separately. Once we have an individual score for each of the three game modes, we can use these to determine a final score.
+In order to determine a win for a game, we will need to address Hardpoint, Search and Destroy, and the Control separately. Each of these gamemodes have different parameters, so we will have to fit models for each gamemode.
 
-**Hardpoint:**
-1. player -- what player does the data correspond to  
-2. mode -- game mode  
-3. win -- 'W' or 'L'; use to find overall player win/loss ratio  
-4. k_d -- kill/death ratio; used to show overall impact on the map  
-5. assists -- in addition to k/d, assists show overall support on the map; higher assists can indicate better team work  
-6. accuracy_percent -- player accuracy for each match  
-7. damage_dealt -- total damage done in the map  
-8. player_spm -- score per minute  
-9. hill_time_s -- hill time measured in seconds  
-10. hill_captures -- shows activity on the map (MIGHT INCLUDE)  
-11. hill_defends -- shows activity on the map (MIGHT INCLUDE)  
-12. match_id -- helpful for getting rid of missing data  
+**Hardpoint:**  
+match_id — helpful for getting rid of missing data  
+win — '1' for a win and '0' for a loss  
+team — player's corresponding team
+player — what player does the data correspond to  
+mode — game mode  
+k_d — kill/death ratio; used to show overall impact on the map  
+assists — in addition to k/d, assists show overall support on the map
+role — a role is determined for each player depending on their most common gun throughout the year 
+damage_dealt — total damage done in the map  
+player_spm — score per minute  
+x_2 — number of two-pieces (two kills in quick succession)  
+x_3 — number of three-pieces (three kills in quick succession)  
+x_4 — number of four-pieces (four kills in quick succession)  
+
+hill_time_s — hill time measured in seconds  
+hill_captures — shows activity on the map  
+hill_defends — shows activity on the map
 
 **Search and Destroy:**
-1. player -- what player does the data correspond to  
-2. mode -- game mode  
-3. win -- 'W' or 'L'; use to find overall player win/loss ratio  
-4. k_d -- kill/death ratio; used to show overall impact on the map  
-5. assists -- in addition to k/d, assists show overall support on the map; higher assists can indicate better team work  
-6. accuracy_percent -- player accuracy for each match  
-7. damage_dealt -- total damage done in the map  
-8. player_spm -- score per minute  
-9. fb_round_ratio -- 'snd_firstbloods'/'snd_rounds' (NOT INCLUDED IN BASE DATA SET)  
-10. bomb_sneak_defuses -- sneak defuses are often in pivotal rounds  
-11. bomb_plants -- good indicator of role (MIGHT INCLUDE)  
-12. bomb_defuses -- good indicator of role (MIGHT INCLUDE)  
-13. match_id -- helpful for getting rid of missing data
+match_id — helpful for getting rid of missing data  
+win — '1' for a win and '0' for a loss  
+team — player's corresponding team
+player — what player does the data correspond to  
+mode — game mode  
+k_d — kill/death ratio; used to show overall impact on the map  
+assists — in addition to k/d, assists show overall support on the map
+role — a role is determined for each player depending on their most common gun throughout the year 
+damage_dealt — total damage done in the map  
+player_spm — score per minute  
+x_2 — number of two-pieces (two kills in quick succession)  
+x_3 — number of three-pieces (three kills in quick succession)  
+x_4 — number of four-pieces (four kills in quick succession)  
+
+fb_round_ratio -- 'snd_firstbloods'/'snd_rounds' 
+bomb_sneak_defuses -- sneak defuses are often in pivotal rounds  
+bomb_plants -- good indicator of role  
+bomb_defuses -- good indicator of role  
+
 
 **Control:**
-1. player -- what player does the data correspond to  
-2. mode -- game mode  
-3. win -- 'W' or 'L'; use to find overall player win/loss ratio  
-4. k_d -- kill/death ratio; used to show overall impact on the map  
-5. assists -- in addition to k/d, assists show overall support on the map; higher assists can indicate better team work  
-6. accuracy_percent -- player accuracy for each match  
-7. damage_dealt -- total damage done in the map  
-8. player_spm -- score per minute  
-9. match_id -- helpful for getting rid of missing data  
+match_id — helpful for getting rid of missing data  
+win — '1' for a win and '0' for a loss  
+team — player's corresponding team
+player — what player does the data correspond to  
+mode — game mode  
+k_d — kill/death ratio; used to show overall impact on the map  
+assists — in addition to k/d, assists show overall support on the map
+role — a role is determined for each player depending on their most common gun throughout the year 
+damage_dealt — total damage done in the map  
+player_spm — score per minute  
+x_2 — number of two-pieces (two kills in quick succession)  
+x_3 — number of three-pieces (three kills in quick succession)  
+x_4 — number of four-pieces (four kills in quick succession)  
+
+ctrl_firstbloods — first kill in a round of control
+ctrl_firstdeaths — first death in a round of control
+ctrl_captures — number of captures in a control game
 
 ---
 
@@ -245,7 +277,7 @@ snd2019 <- snd2019[order(snd2019$player),]
 ```{r}
 
 # all 2019 CONTROL data
-control2019 <- sqldf('SELECT player, role, win, k_d, assists, damage_dealt, player_spm FROM majors2019 WHERE mode == "Control"')
+control2019 <- sqldf('SELECT player, role, win, k_d, assists, damage_dealt, player_spm, x2_piece, x3_piece, x4_piece, ctrl_firstbloods, ctrl_firstdeaths, ctrl_captures FROM majors2019 WHERE mode == "Control"')
 control2019 <- control2019[order(control2019$player),]
 
 ```
@@ -555,7 +587,9 @@ The number of wins appears to follow a normal distribution. The left side of the
 # Models: Hardpoint
 I will be trying to predict whether an individual player will win or lose a game based on his statistics in the given game.
 
-**Splitting Data:**
+## Splitting Data:
+Here, I am splitting the hardpoint data with 80% training and 20% testing. The data is stratified on the "win" variable.
+
 ```{r}
 
 hp2019_wl <- hp2019
@@ -568,6 +602,10 @@ hp2019_wlsplit <- hp2019_wl %>%
 hp2019_train <- training(hp2019_wlsplit)
 hp2019_test <- testing(hp2019_wlsplit)
 
+```
+
+Below is the head of the training data; as well as the dimensions for the training and the testing data. There is also the distribution for the number of wins.
+```{r}
 
 head(hp2019_train)
 
@@ -578,6 +616,71 @@ prop.table(table(hp2019_train$win))
 
 ```
 
+## Creating a recipe and folding:
+The begin with my Hardpoint models, I made a recipe that contained all of my predictor variables. I then normalized all of my predictor variables.
+
+```{r}
+
+hp_test_recipe <- recipe(win ~ k_d + assists + damage_dealt + 
+                        player_spm + hill_time_s + hill_captures + 
+                        hill_defends + x2_piece + x3_piece + x4_piece, 
+                      data = hp2019_train) %>%
+  step_normalize(all_predictors())
+
+```
+
+After making my recipe, I decided to fold my data with 10 folds and 5 repeats. 
+```{r}
+
+hp_train_folds <- vfold_cv(hp2019_train, v = 10, repeats = 5)
+
+```
+
+## Model 2: Random Forest TEST TEST TEST
+
+Now it was time to prepare my model. I tuned min_n and mtry, set my mode to "classification", and set my engine to "ranger." My workflow was set up to use both my Hardpoint recipe and my Hardpoint random forest model.
+```{r}
+
+hp_rf_model <- rand_forest(min_n = tune(),
+                        mtry = tune(),
+                        mode = "classification") %>%
+  set_engine("ranger")
+
+hp_rf_workflow <- workflow() %>%
+  add_model(hp_rf_model) %>%
+  add_recipe(hp_test_recipe)
+
+```
+
+Next, I set up parameters for the grid that I was going to make. The parameters were set the Hardpoint random forest model and the mtry range was set from 1 to 7. This mtry limit was set slightly below the maximum number of predictors.
+```{r}
+
+hp_rf_parameters <- hardhat::extract_parameter_set_dials(hp_rf_model) %>%
+  update(mtry = mtry(range = c(2, 10)))
+
+hp_rf_grid <- grid_regular(hp_rf_parameters, levels = 2)
+
+```
+
+Then, I ran my model by tuning and fitting, using my folded data and my grid. 
+```{r}
+
+hp_rf_tune <- hp_rf_workflow %>%
+  tune_grid(resamples = hp_train_folds,
+            grid = hp_rf_grid)
+
+```
+
+The last thing to do was to plot my tuned model.
+```{r}
+
+autoplot(hp_rf_tune, metric = "accuracy")
+
+```
+
+
+--------------
+
 ## Model 1: Decision Tree
 
 Creating a general decision tree specification using rpart:
@@ -586,11 +689,29 @@ Creating a general decision tree specification using rpart:
 hp_tree_spec <- decision_tree() %>%
   set_engine("rpart")
 
+```
+
+Setting a classification decision tree engine:
+```{r}
+
 hp_class_tree_spec <- hp_tree_spec %>%
   set_mode("classification")
 
+```
+
+Fitting the model:
+```{r}
+
 hp_class_tree_fit <- hp_class_tree_spec %>%
-  fit(win ~ k_d + assists + damage_dealt + player_spm + hill_time_s + hill_captures + hill_defends + x2_piece + x3_piece + x4_piece, data = hp2019_train)
+  fit(win ~ k_d + role + assists + damage_dealt + 
+                        player_spm + hill_time_s + hill_captures + 
+                        hill_defends + x2_piece + x3_piece + x4_piece, 
+                      data = hp2019_train)
+
+```
+
+Visualizing the decision tree:
+```{r}
 
 hp_class_tree_fit %>%
   extract_fit_engine() %>%
@@ -604,11 +725,77 @@ Checking confusion matrix and accuracy of the **train** data:
 augment(hp_class_tree_fit, new_data = hp2019_train) %>%
   conf_mat(truth = win, estimate = .pred_class)
 
-hp_dt_accuracy <- augment(class_tree_fit, new_data = hp2019_train) %>%
+hp_dt_accuracy <- augment(hp_class_tree_fit, new_data = hp2019_train) %>%
   accuracy(truth = win, estimate = .pred_class)
 hp_dt_accuracy
 
 ```
+
+Creating a workflow that is ready to tune cost complexity:
+```{r}
+
+hp_class_tree_wf <- workflow() %>%
+  add_model(hp_class_tree_spec %>% set_args(cost_complexity = tune())) %>%
+  add_recipe(hp_test_recipe)
+
+```
+
+Setting up a regular grid:
+```{r}
+
+param_grid <- grid_regular(cost_complexity(range = c(-3, -1)), levels = 10)
+
+```
+
+Fitting and tuning our model:
+```{r}
+
+hp_rf_tune <- hp_class_tree_wf %>%
+  tune_grid(
+  hp_class_tree_wf, 
+  resamples = hp_train_folds, 
+  grid = param_grid, 
+  metrics = metric_set(accuracy))
+
+```
+
+Plotting our model, which shows what cost-complexity produces the highest accuracy:
+```{r}
+
+autoplot(hp_rf_tune)
+
+```
+
+Selecting the best performing value and finalizing the workflow:
+```{r}
+
+hp_best_complexity <- select_best(hp_rf_tune)
+
+hp_class_tree_final <- finalize_workflow(hp_class_tree_wf, hp_best_complexity)
+
+hp_class_tree_final_fit <- fit(hp_class_tree_final, data = hp2019_train)
+
+```
+
+Visualizing the final model:
+```{r}
+
+hp_class_tree_final_fit %>%
+  extract_fit_engine() %>%
+  rpart.plot(roundint = FALSE)
+
+```
+
+Checking the accuracy of the final model:
+```{r}
+
+augment(hp_class_tree_final_fit, new_data = hp2019_train) %>%
+  accuracy(truth = win, estimate = .pred_class)
+
+```
+
+As we can see, the final accuracy for the tuned model was slightly higher with an estimate of 0.7321881, compared to that of the untuned model with an estimate of 0.7203605.
+
 
 
 
@@ -620,17 +807,15 @@ hp_dt_accuracy
 
 ```{r}
 
-# library(randomForest)
-# library(datasets)
-# library(caret)
-
-set.seed(306)
-
-hp_rf <- randomForest(win ~ k_d + assists + damage_dealt + player_spm + hill_time_s + hill_captures + hill_defends + x2_piece + x3_piece + x4_piece, data = hp2019_train, ntree = 500)
+hp_rf <- randomForest(win ~ k_d + role + assists + damage_dealt + 
+                        player_spm + hill_time_s + hill_captures + 
+                        hill_defends + x2_piece + x3_piece + x4_piece, 
+                      data = hp2019_train, 
+                      ntree = 500)
 
 print(hp_rf)
 
-hp_rfAccuracy <- (1300 + 1323) / (1300 + 1323 + 457 + 471)
+hp_rfAccuracy <- (1304 + 1313) / (1304 + 1313 + 467 + 467)
 hp_rfAccuracy
 
 ```
@@ -643,8 +828,6 @@ varImpPlot(hp_rf)
 
 
 hp_pred1 = predict(hp_rf, type = "prob")
-
-library(ROCR)
 
 hp_perf = prediction(hp_pred1[,2], hp2019_train$win)
 
@@ -660,6 +843,7 @@ plot(hp_pred3, main="ROC Curve for Random Forest", col=2, lwd=2)
 abline(a=0, b=1, lwd=2, lty=2, col="gray")
 
 
+
 plot(hp_rf)
 
 ```
@@ -673,7 +857,10 @@ plot(hp_rf)
 Recipe, Engine, and Workflow:
 ```{r}
 
-hp_recipe <- recipe(win ~ k_d + assists + damage_dealt + player_spm + hill_time_s + hill_captures + hill_defends + x2_piece + x3_piece + x4_piece, data = hp2019_train)
+hp_recipe <- recipe(win ~ k_d + role + assists + damage_dealt + 
+                        player_spm + hill_time_s + hill_captures + 
+                        hill_defends + x2_piece + x3_piece + x4_piece, 
+                      data = hp2019_train)
 
 hp_log_reg <- logistic_reg() %>% 
   set_engine("glm") %>% 
@@ -725,11 +912,11 @@ hp_svm_rbf_spec <- svm_rbf() %>%
   set_mode("classification") %>%
   set_engine("kernlab")
 
-hp_svm_rbf_fit <- svm_rbf_spec %>%
-  fit(win ~ k_d + assists + damage_dealt + player_spm + 
-        hill_time_s + hill_captures + hill_defends + 
-        x2_piece + x3_piece + x4_piece, 
-      data = hp2019_train)
+hp_svm_rbf_fit <- hp_svm_rbf_spec %>%
+  fit(win ~ k_d + role + assists + damage_dealt + 
+                        player_spm + hill_time_s + hill_captures + 
+                        hill_defends + x2_piece + x3_piece + x4_piece, 
+                      data = hp2019_train)
 
 augment(hp_svm_rbf_fit, new_data = hp2019_train) %>%
   conf_mat(truth = win, estimate = .pred_class)
@@ -783,10 +970,8 @@ As we can see from this, the SVM appears to have the highest accuracy.
 
 # Models: Search and Destroy
 
-**Splitting Data:**
+## Splitting Data:
 ```{r}
-
-set.seed(1)
 
 snd2019_split <- snd2019 %>%
   initial_split(prop = 0.8, strata = "win")
@@ -856,12 +1041,6 @@ class_tree
 
 ```{r}
 
-# library(randomForest)
-# library(datasets)
-# library(caret)
-
-set.seed(306)
-
 rf <- randomForest(win ~ k_d + role + assists + damage_dealt + 
         player_spm + bomb_sneak_defuses + bomb_plants +
         bomb_defuses + fb_round_ratio + snd_firstbloods + 
@@ -872,7 +1051,7 @@ rf <- randomForest(win ~ k_d + role + assists + damage_dealt +
 
 print(rf)
 
-rfAccuracy <- (1032 + 930) / (1032 + 930 + 360 + 469)
+rfAccuracy <- (1022 + 929) / (1022 + 929 + 370 + 470)
 rfAccuracy
 
 ```
@@ -885,8 +1064,6 @@ varImpPlot(rf)
 
 
 pred1=predict(rf,type = "prob")
-
-library(ROCR)
 
 perf = prediction(pred1[,2], snd2019_train$win)
 
@@ -985,6 +1162,7 @@ augment(svm_rbf_fit, new_data = snd2019_train) %>%
 svmAccuracy <- augment(svm_rbf_fit, new_data = snd2019_train) %>%
   accuracy(truth = win, estimate = .pred_class)
 svmAccuracy
+
 ```
 
 
@@ -1006,6 +1184,225 @@ snd_accuracies
 
 As we can see from this, the SVM model appears to have the highest accuracy.
 
+
+
+
+------------
+
+
+# Models: Control
+
+## Splitting Data:
+```{r}
+
+set.seed(1)
+
+control2019_split <- control2019 %>%
+  initial_split(prop = 0.8, strata = "win")
+
+control2019_train <- training(control2019_split)
+control2019_test <- testing(control2019_split)
+
+
+head(control2019_train)
+
+dim(control2019_train)
+dim(control2019_test)
+
+prop.table(table(control2019_train$win))
+
+```
+
+
+
+------------
+
+
+
+## Model 1: Decision Tree
+
+Creating a general decision tree specification using rpart:
+```{r}
+
+control_tree_spec <- decision_tree() %>%
+  set_engine("rpart")
+
+control_class_tree_spec <- control_tree_spec %>%
+  set_mode("classification")
+
+control_class_tree_fit <- control_class_tree_spec %>%
+  fit(win ~ k_d + role + assists + damage_dealt + 
+        player_spm + x2_piece + x3_piece + x4_piece +
+        ctrl_firstbloods + ctrl_firstdeaths + ctrl_captures, 
+      data = control2019_train)
+
+control_class_tree_fit %>%
+  extract_fit_engine() %>%
+  rpart.plot()
+
+```
+
+Checking confusion matrix and accuracy of the **train** data:
+```{r}
+
+augment(control_class_tree_fit, new_data = control2019_train) %>%
+  conf_mat(truth = win, estimate = .pred_class)
+
+control_dt_accuracy <- augment(control_class_tree_fit, new_data = control2019_train) %>%
+  accuracy(truth = win, estimate = .pred_class)
+control_dt_accuracy
+
+```
+
+
+
+-----------------------------
+
+
+## Model 2: Random Forest
+
+```{r}
+
+# library(randomForest)
+# library(datasets)
+# library(caret)
+
+control_rf <- randomForest(win ~ k_d + role + assists + damage_dealt + 
+        player_spm + x2_piece + x3_piece + x4_piece +
+        ctrl_firstbloods + ctrl_firstdeaths + ctrl_captures, 
+      data = control2019_train,
+      ntree = 500)
+
+print(control_rf)
+
+control_rfAccuracy <- (795 + 786) / (795 + 786 + 276 + 265)
+control_rfAccuracy
+
+```
+
+```{r}
+
+importance(control_rf)
+varImpPlot(control_rf)
+
+
+
+control_pred1 = predict(control_rf, type = "prob")
+
+control_perf = prediction(control_pred1[,2], control2019_train$win)
+
+# 1. Area under curve
+control_auc = performance(control_perf, "auc")
+control_auc
+
+# 2. True Positive and Negative Rate
+control_pred3 = performance(control_perf, "tpr","fpr")
+
+# 3. Plot the ROC curve
+plot(control_pred3, main="ROC Curve for Random Forest", col=2, lwd=2)
+abline(a=0, b=1, lwd=2, lty=2, col="gray")
+
+```
+
+
+
+----------
+
+
+
+## Model 3: Logistic Regression
+
+Recipe, Engine, and Workflow:
+```{r}
+
+control_recipe <- recipe(win ~ k_d + role + assists + damage_dealt + 
+        player_spm + x2_piece + x3_piece + x4_piece +
+        ctrl_firstbloods + ctrl_firstdeaths + ctrl_captures, 
+      data = control2019_train)
+
+control_log_reg <- logistic_reg() %>% 
+  set_engine("glm") %>% 
+  set_mode("classification")
+
+control_log_wkflow <- workflow() %>% 
+  add_model(control_log_reg) %>% 
+  add_recipe(control_recipe)
+
+control_log_fit <- fit(control_log_wkflow, control2019_train)
+
+control_log_fit %>% 
+  tidy()
+
+```
+
+Assessing Model Performance:
+```{r}
+
+predict(control_log_fit, new_data = control2019_train, type = "prob")
+
+augment(control_log_fit, new_data = control2019_train) %>%
+  conf_mat(truth = win, estimate = .pred_class)
+
+augment(control_log_fit, new_data = control2019_train) %>%
+  conf_mat(truth = win, estimate = .pred_class) %>%
+  autoplot(type = "heatmap")
+
+```
+
+Checking accuracy:
+```{r}
+
+control_log_reg_acc <- augment(control_log_fit, new_data = control2019_train) %>%
+  accuracy(truth = win, estimate = .pred_class)
+control_log_reg_acc
+
+```
+
+
+----------
+
+
+## Model 4: Support Vector Machine
+
+```{r}
+
+control_svm_rbf_spec <- svm_rbf() %>%
+  set_mode("classification") %>%
+  set_engine("kernlab")
+
+control_svm_rbf_fit <- control_svm_rbf_spec %>%
+  fit(win ~ k_d + role + assists + damage_dealt + 
+        player_spm + x2_piece + x3_piece + x4_piece +
+        ctrl_firstbloods + ctrl_firstdeaths + ctrl_captures, 
+      data = control2019_train)
+
+augment(control_svm_rbf_fit, new_data = control2019_train) %>%
+  conf_mat(truth = win, estimate = .pred_class)
+
+control_svmAccuracy <- augment(control_svm_rbf_fit, new_data = control2019_train) %>%
+  accuracy(truth = win, estimate = .pred_class)
+control_svmAccuracy
+
+```
+
+
+----------
+
+
+
+## Comparing Model Performance
+
+```{r}
+
+control_accuracies <- c(control_dt_accuracy$.estimate,
+                    control_rfAccuracy,
+                    control_log_reg_acc$.estimate, 
+                    control_svmAccuracy$.estimate)
+control_accuracies
+
+```
+
+Once again, we can see that the SVM model had the highest accuracy with 0.8096136.
 
 
 
