@@ -1,7 +1,7 @@
 ---
 title: "PSTAT 131 Final Project"
 author: "Luke Todd"
-date: "4/4/2022"
+date: "6/9/2022"
 output: 
   html_document:
    code_folding: hide
@@ -9,7 +9,7 @@ output:
 
 ```{r setup, include=FALSE, message = FALSE}
 
-knitr::opts_chunk$set(echo = TRUE)
+knitr::opts_chunk$set(echo = TRUE, warning = FALSE, message = FALSE)
 
 library(vembedr)
 
@@ -34,7 +34,7 @@ embed_url("https://www.youtube.com/watch?v=VQC0aZuGBFs&t=2740s")
 # Game Modes in Circuit
 
 ### Hardpoint
-In Hardpoint, the two teams must fight over a point on the map where every second they spend in this point, they gain one point. This point is called the "hardpoint." If two teams are in the hardpoint at the same time, then neither teams collects points. Every sixty seconds, the hardpoint changes locations on the map, so teams must make tactical decisions to be able to rotate across the map. The first team to 250 points wins the map.
+In Hardpoint, the two teams must fight over a point on the map where every second they spend in this point, they gain one point. This point is called the "Hardpoint." If two teams are in the Hardpoint at the same time, then neither teams collects points. Every sixty seconds, the Hardpoint changes locations on the map, so teams must make tactical decisions to be able to rotate across the map. The first team to 250 points wins the map.
 
 ```{r}
 embed_url("https://www.youtube.com/watch?v=VQC0aZuGBFs&t=2740s") %>%
@@ -69,7 +69,7 @@ This model is useful because it will allow us to see whether a player's statisti
 
 All the packages are loaded below.
 
-```{r, include=FALSE, message = FALSE}
+```{r, message = FALSE}
 
 library(readr)
 library(tidyverse)
@@ -92,6 +92,7 @@ library(caret)
 library(ROCR)
 library(tune)
 library(kknn)
+library(RColorBrewer)
 
 ```
 
@@ -124,76 +125,90 @@ champs2019 <- read_csv(url("https://raw.githubusercontent.com/Activision/cwl-dat
 In order to determine a win for a game, we will need to address Hardpoint, Search and Destroy, and the Control separately. Each of these gamemodes have different parameters, so we will have to fit models for each gamemode.
 
 **Hardpoint:**  
-match_id — helpful for getting rid of missing data  
-win — '1' for a win and '0' for a loss  
-team — player's corresponding team
-player — what player does the data correspond to  
-mode — game mode  
-k_d — kill/death ratio; used to show overall impact on the map  
-assists — in addition to k/d, assists show overall support on the map
-role — a role is determined for each player depending on their most common gun throughout the year 
-damage_dealt — total damage done in the map  
-player_spm — score per minute  
-x_2 — number of two-pieces (two kills in quick succession)  
-x_3 — number of three-pieces (three kills in quick succession)  
-x_4 — number of four-pieces (four kills in quick succession)  
 
-hill_time_s — hill time measured in seconds  
-hill_captures — shows activity on the map  
-hill_defends — shows activity on the map
-
-**Search and Destroy:**
-match_id — helpful for getting rid of missing data  
-win — '1' for a win and '0' for a loss  
-team — player's corresponding team
-player — what player does the data correspond to  
-mode — game mode  
-k_d — kill/death ratio; used to show overall impact on the map  
-assists — in addition to k/d, assists show overall support on the map
-role — a role is determined for each player depending on their most common gun throughout the year 
-damage_dealt — total damage done in the map  
-player_spm — score per minute  
-x_2 — number of two-pieces (two kills in quick succession)  
-x_3 — number of three-pieces (three kills in quick succession)  
-x_4 — number of four-pieces (four kills in quick succession)  
-
-fb_round_ratio -- 'snd_firstbloods'/'snd_rounds' 
-bomb_sneak_defuses -- sneak defuses are often in pivotal rounds  
-bomb_plants -- good indicator of role  
-bomb_defuses -- good indicator of role  
+* `end_time` — helpful for organizing games chronologically
+* `match_id` — helpful for getting rid of missing data  
+* `win` — '1' for a win and '0' for a loss  
+* `team` — player's corresponding team
+* `player` — what player does the data correspond to  
+* `mode` — game mode  
+* `k_d` — kill/death ratio; used to show overall impact on the map  
+* `assists` — in addition to k/d, assists show overall support on the map  
+* `role` — a role is determined for each player depending on their most common gun throughout the year  
+* `damage_dealt` — total damage done in the map  
+* `player_spm` — score per minute  
+* `x2_piece` — number of two-pieces (two kills in quick succession)  
+* `x3_piece` — number of three-pieces (three kills in quick succession)  
+* `x4_piece` — number of four-pieces (four kills in quick succession)  
+* `hill_time_s` — hill time measured in seconds  
+* `hill_captures` — shows activity on the map  
+* `hill_defends` — shows activity on the map
 
 
-**Control:**
-match_id — helpful for getting rid of missing data  
-win — '1' for a win and '0' for a loss  
-team — player's corresponding team
-player — what player does the data correspond to  
-mode — game mode  
-k_d — kill/death ratio; used to show overall impact on the map  
-assists — in addition to k/d, assists show overall support on the map
-role — a role is determined for each player depending on their most common gun throughout the year 
-damage_dealt — total damage done in the map  
-player_spm — score per minute  
-x_2 — number of two-pieces (two kills in quick succession)  
-x_3 — number of three-pieces (three kills in quick succession)  
-x_4 — number of four-pieces (four kills in quick succession)  
+**Search and Destroy:**  
 
-ctrl_firstbloods — first kill in a round of control
-ctrl_firstdeaths — first death in a round of control
-ctrl_captures — number of captures in a control game
+* `end_time` — helpful for organizing games chronologically
+* `match_id` — helpful for getting rid of missing data  
+* `win` — '1' for a win and '0' for a loss  
+* `team` — player's corresponding team
+* `player` — what player does the data correspond to  
+* `mode` — game mode  
+* `k_d` — kill/death ratio; used to show overall impact on the map  
+* `assists` — in addition to k/d, assists show overall support on the map  
+* `role` — a role is determined for each player depending on their most common gun throughout the year  
+* `damage_dealt` — total damage done in the map  
+* `player_spm` — score per minute  
+* `x2_piece` — number of two-pieces (two kills in quick succession)  
+* `x3_piece` — number of three-pieces (three kills in quick succession)  
+* `x4_piece` — number of four-pieces (four kills in quick succession)  
+* `fb_round_ratio` — 'snd_firstbloods'/'snd_rounds' 
+* `bomb_sneak_defuses` — sneak defuses are often in pivotal rounds  
+* `bomb_plants` — good indicator of role  
+* `bomb_defuses` — good indicator of role
+
+
+
+**Control:**  
+
+* `end_time` — helpful for organizing games chronologically
+* `match_id` — helpful for getting rid of missing data  
+* `win` — '1' for a win and '0' for a loss  
+* `team` — player's corresponding team
+* `player` — what player does the data correspond to  
+* `mode` — game mode  
+* `k_d` — kill/death ratio; used to show overall impact on the map  
+* `assists` — in addition to k/d, assists show overall support on the map  
+* `role` — a role is determined for each player depending on their most common gun throughout the year  
+* `damage_dealt` — total damage done in the map  
+* `player_spm` — score per minute  
+* `x2_piece` — number of two-pieces (two kills in quick succession)  
+* `x3_piece` — number of three-pieces (three kills in quick succession)  
+* `x4_piece` — number of four-pieces (four kills in quick succession)  
+* `ctrl_firstbloods` — first kill in a round of control  
+* `ctrl_firstdeaths` — first death in a round of control  
+* `ctrl_captures` — number of captures in a control game  
+
 
 ---
 
 # Data Split
+I will be splitting my data just before I work on my models. I found that this made the most sense, as I will have to split multiple times for multiple different game modes. This way, it will be easier to organize. 
 
 
 ---  
 
 # Data Cleaning and Organization
 
-The data below is for all of the majors throughout the season, except for COD Champs. We will reserve COD Champs to act as a test set. The raw data from each major is merged into one major dataset, further broken up into Hardpoint, SND, and Control datasets.  
+The data below is for all of the majors throughout the season, except for COD Champs. I will use the Champs data later as a way to further test my model. The raw data from each major is merged into one major dataset, further broken up into Hardpoint, SND, and Control datasets.  
 
 ## All Majors 2019 data
+Below is the code for the merging of the data from all Majors during the season. In order to make sure that the data was ready for use, I went through a few cleaning processes:  
+
+1. cleaned names  
+2. removed games with data loss  
+3. removed all players that had less than 50 games played, as they would skew the data
+4. manually changed Win/Loss into a dummy variable  
+5. manually added a column that determined the role of each player  
 ```{r}
 
 # CLEANING
@@ -229,6 +244,8 @@ playerRoles <- majors2019 %>%
   mutate(role = fave_weapon) %>%
   subset(select = -c(fave_weapon, n))
 
+# A player's role is defined as a sub (1), flex (2), or an ar (3).
+
 # replace fav gun with corresponding role
 playerRoles$role <- str_replace(playerRoles$role, "Saug 9mm", "1")
 playerRoles$role <- str_replace(playerRoles$role, "Maddox RFB", "2")
@@ -240,13 +257,15 @@ playerRoles$role <- factor(playerRoles$role)
 # manually adjustment for player TJHaly
 playerRoles <- playerRoles[-c(83), ]
 
+# joining two sets together
 majors2019 <- dplyr::inner_join(playerRoles, majors2019, by = "player")
 
 ```
+Now that this was Majors dataset was created, I was able to easily subset from it for each different game mode.
 
-A player's role is defined as a sub (1), flex (2), or an ar (3).
 
 ### Hardpoint subset
+Below is a subset of all the Hardpoint data for the season. I used the "sqldf" package as a way to refresh on my SQL skills, as well as remove any data that I deemed unnecessary. This will make it easier to manage and organize in the future.
 ```{r}
 
 # all 2019 hardpoint data
@@ -256,6 +275,9 @@ hp2019 <- hp2019[order(hp2019$player),]
 ```
 
 ### Search and Destroy subset
+Below is a subset of all the Search and Destroy data for the season. This will make it easier to manage and organize in the future. I also add a few different columns: fb_round_ratio and fb_avg.  
+  
+**Note:** Ultimately, I ended up not using fb_avg in my models, but I left it as an interesting player-driven statistic.
 ```{r}
 
 # all 2019 SND data
@@ -275,6 +297,7 @@ snd2019 <- snd2019[order(snd2019$player),]
 ```
 
 ### Control subset
+Below is a subset of all the Control data for the season. This will make it easier to manage and organize in the future.
 ```{r}
 
 # all 2019 CONTROL data
@@ -284,6 +307,12 @@ control2019 <- control2019[order(control2019$player),]
 ```
 
 ## Champs 2019 dataset
+Similar to the Majors dataset, I also needed to tidy up the Champs data. I followed these steps:  
+
+1. cleaned names  
+2. removed missing data  
+3. manually changed Win/Loss into dummy variable  
+4. added roles for each player  
 ```{r}
 
 champs2019 <- champs2019 %>% clean_names(.)
@@ -300,6 +329,7 @@ champs2019 <- dplyr::inner_join(playerRoles, champs2019, by = "player")
 ```
 
 ### Hardpoint CHAMPS subset
+Below is a subset of the Hardpoint data used for my Champs analysis. I selected directly for the grand finals match, as that would be the match that I would analyze. 
 ```{r}
 
 # CHAMPS 2019 hardpoint data
@@ -309,6 +339,7 @@ hpChamps <- hpChamps[order(hpChamps$team),]
 ```
 
 ### Search and Destroy CHAMPS subset
+Below is a subset of the Search and Destroy data used for my Champs analysis. I selected directly for the grand finals match, as that would be the match that I would analyze. 
 ```{r}
 
 # CHAMPS 2019 SND data
@@ -328,6 +359,7 @@ sndChamps <- sndChamps[order(sndChamps$team),]
 ```
 
 ### Control CHAMPS subset
+Below is a subset of the Control data used for my Champs analysis. I selected directly for the grand finals match, as that would be the match that I would analyze. 
 ```{r}
 
 # CHAMPS 2019 CONTROL data
@@ -336,92 +368,214 @@ controlChamps <- controlChamps[order(controlChamps$team),]
 
 ```
 
-
-
-
-
-
-----------------------------------------------------------  
-
-
-
-
+---
 
 # Exploratory Data Analysis
-For my exploratory data analysis, I will be using just the season data. It will not include the Champs data.
-
-
+For my exploratory data analysis, I will be using just the season data. It will not include the Champs data. It is done on non-split data, since I was personally interested in seeing the top performers for the WHOLE season. Splitting the data, while it would help remove any type of bias on my end, would skew the EDA and would ultimately confuse me more in the future.
 
 ## Kill/death for season
+From what I know about Call of Duty, K/D is always the most important, or at least the most talked about, statistic for a player. It is using an indicator that a player is doing really well for his team. However, it also must be taken with a grain of salt, as some players are known to pad their stats by "baiting" their teammate. The following graphs will look directly on the varying K/D of players over the whole season.
+
+### Overall
 ```{r, fig.height = 25, fig.width = 9}
-
-ggplot(majors2019, aes(x = reorder(player, k_d), y = k_d)) + geom_boxplot() + coord_flip(ylim = c(0, 3.5)) + labs(y = "Kill/death ratio", x = "Player", subtitle = "OVERALL Player K/D's, 2019 Season (BO4), Descending")
-ggplot(hp2019, aes(x = reorder(player, k_d), y = k_d)) + geom_boxplot() + coord_flip(ylim = c(0, 3.5)) + labs(y = "Kill/death ratio", x = "Player", subtitle = "Player K/D's for HARDPOINT, 2019 Season (BO4), Descending")
-ggplot(snd2019, aes(x = reorder(player, k_d), y = k_d)) + geom_boxplot() + coord_flip(ylim = c(0, 5)) + labs(y = "Kill/death ratio", x = "Player", subtitle = "Player K/D's for SEARCH AND DESTROY, 2019 Season (BO4), Descending")
-ggplot(control2019, aes(x = reorder(player, k_d), y = k_d)) + geom_boxplot() + coord_flip(ylim = c(0, 3.5)) + labs(y = "Kill/death ratio", x = "Player", subtitle = "Player K/D's for CONTROL, 2019 Season (BO4), Descending")
-
+ggplot(majors2019, aes(x = reorder(player, k_d), y = k_d)) + geom_boxplot() + coord_flip(ylim = c(0, 3.5)) + labs(y = "Kill/death ratio", x = "Player", title = "OVERALL Player K/D's, 2019 Season (BO4), Descending")
 ```
 
+As we can see from the above graph, the players with the top overall K/D's for the season were:  
 
+1. Simp  
+2. Brack  
+3. Dashy  
+4. Skyz  
+5. Denz  
+
+This is interesting since this season was Simp's breakout year. Since then, Simp has grown to be regarded as one of the best Call of Duty player's of all time, having won 3 rings in 4 years; something that even the greats haven't done.
+
+We can also see that the players with the lowest overall K/D's for the season were:  
+
+1. MethodZsick  
+2. Goonjar  
+3. Knight  
+4. Felony  
+5. Diabolic  
+
+### Hardpoint
+```{r, fig.height = 25, fig.width = 9}
+ggplot(hp2019, aes(x = reorder(player, k_d), y = k_d)) + geom_boxplot() + coord_flip(ylim = c(0, 3.5)) + labs(y = "Kill/death ratio", x = "Player", title = "Player K/D's for HARDPOINT, 2019 Season (BO4), Descending")
+```
+
+From this plot, we can see that the top K/D's in Hardpoint were:  
+
+1. Octane  
+2. Dashy  
+3. Skrapz  
+4. Skyz  
+5. Temp  
+
+The lowest K/D's in Hardpoint were:  
+
+1. Aches  
+2. MethodZsick  
+3. Knight  
+4. Felony  
+5. Diabolic  
+
+Four of these bottom performers were also apart of the lowest overall K/D's. Hardpoint may be the reason that they all struggled.
+
+### Search and Destroy
+```{r, fig.height = 25, fig.width = 9}
+ggplot(snd2019, aes(x = reorder(player, k_d), y = k_d)) + geom_boxplot() + coord_flip(ylim = c(0, 5)) + labs(y = "Kill/death ratio", x = "Player", title = "Player K/D's for SEARCH AND DESTROY, 2019 Season (BO4), Descending")
+```
+
+From this plot, we can see that the top K/D's for Search and Destroy were:  
+
+1. Brack  
+2. Natshay  
+3. Simp  
+4. Denz  
+5. Havok  
+
+The lowest K/D's in Search and Destroy were:  
+
+1. Asim  
+2. Silly  
+3. Knight  
+4. Goonjar  
+5. Diabolic  
+
+Once again, we can see that Knight, Goonjar, and Diabolic have not been performing well.
+
+### Control
+```{r, fig.height = 25, fig.width = 9}
+ggplot(control2019, aes(x = reorder(player, k_d), y = k_d)) + geom_boxplot() + coord_flip(ylim = c(0, 3.5)) + labs(y = "Kill/death ratio", x = "Player", title = "Player K/D's for CONTROL, 2019 Season (BO4), Descending")
+```
+
+From this plot, we can see that the top K/D's for Control were:  
+
+1. Envoy  
+2. Simp  
+3. Dashy  
+4. Maux  
+5. Slasher  
+
+Throughout all of these top K/D's, we have repeatedly seen Simp and Dashy at the top, which reflects in their overall K/D's.
+
+The lowest K/D's in Control were:  
+
+1. Jetli  
+2. Zeeked  
+3. Joee  
+4. Felony  
+5. Rizk  
+
+I only recently started watching Call of Duty again in the past few years, which means I didn't watch this season that I am studying. I find it interesting that I have never heard of any of these bottom players except Felony. They couldn't put up good numbers, and thus they haven't made it back into the league.
 
 ## Search and Destroy First Bloods
-Search and Destroy is a gamemode that has multiple rounds, where in each round, every player only has one life. A "first blood" is the first kill of the round and is usually highly influential. This a common stat that commentators and the community look at.
+Search and Destroy is a game mode that has multiple rounds, where in each round, every player only has one life. A "first blood" is the first kill of the round and is usually highly influential. This a common stat that commentators and the community look at.
 
 ### Firstblood average
+The firstblood average metric is simply just the average amount of firstbloods that a player has in a game. 
 ```{r, fig.height = 25, fig.width = 11}
 
 # player firstblood average for SND 2019
 
-ggplot(snd2019, aes(x = reorder(player, fb_avg), y = fb_avg)) + geom_point() + coord_flip(ylim = c(0, 3)) + labs(y = "Firstblood Average", x = "Player", subtitle = "Player Firstblood Average for SEARCH AND DESTROY, 2019 Season (BO4), Descending")
+ggplot(snd2019, aes(x = reorder(player, fb_avg), y = fb_avg)) + geom_point() + coord_flip(ylim = c(0, 3)) + labs(y = "Firstblood Average", x = "Player", title = "Player Firstblood Average for SEARCH AND DESTROY, 2019 Season (BO4), Descending")
 
 ```
 
+As we can see from the plot, Huke lead the pack with about 1.7 firstbloods per game. He was followed closely by Envoy, Dylan, Lucky, and Attach with about 1.4 firstbloods per game each. This is interesting since most of these players are SMG (submachine gun) players. Their role is to find routes and open up the round by (hopefully) getting a first blood. The community would likely look at each of these players with high praise; considering that I have heard about everyone except Lucky, these players are great performers even still. Next, I will look at total firstbloods per player.
 
 ### Firstblood totals
 ```{r, fig.height = 25, fig.width = 9}
 
 # player firstbloods for SND 2019
 
-ggplot(snd2019, aes(x = reorder(player, snd_firstbloods), y = snd_firstbloods)) + geom_boxplot() + coord_flip(ylim = c(0, 6)) + labs(y = "Firstbloods", x = "Player", subtitle = "Player Firstbloods for SEARCH AND DESTROY, 2019 Season (BO4), Descending")
+ggplot(snd2019, aes(x = reorder(player, snd_firstbloods), y = snd_firstbloods)) + geom_boxplot() + coord_flip(ylim = c(0, 6)) + labs(y = "Firstbloods", x = "Player", title = "Player Firstbloods for SEARCH AND DESTROY, 2019 Season (BO4), Descending")
 
 ```
 
+The reason I plotted this was mainly to look at the outliers in the dataset. I was interested in seeing what players had firstbloods in a single game. By looking at this plot, we can see that Dylan, Lucky, and Slasher all had 6 firstbloods in a single game. I would predict that they all won their respective games. Next, I will look at each players' firstblood/round ratio. 
 
 ### Firstblood/round
+I created this metric as a more realistic way of comparing players' firstbloods. Obviously, if a game goes on for 11 rounds, a player is way more likely to have more firstbloods than if a game only went for 6 rounds. Because of this, I wanted to see the ratio for the number of firstbloods per round.
 ```{r, fig.height = 25, fig.width = 11}
 
 # player firstblood/round for SND 2019
 
-ggplot(snd2019, aes(x = reorder(player, fb_round_ratio), y = fb_round_ratio)) + geom_boxplot() + coord_flip(ylim = c(0, 0.6)) + labs(y = "Firstblood/round ratio", x = "Player", subtitle = "Player Firstblood/Round for SEARCH AND DESTROY, 2019 Season (BO4), Descending")
+ggplot(snd2019, aes(x = reorder(player, fb_round_ratio), y = fb_round_ratio)) + geom_boxplot() + coord_flip(ylim = c(0, 0.6)) + labs(y = "Firstblood/round ratio", x = "Player", title = "Player Firstblood/Round for SEARCH AND DESTROY, 2019 Season (BO4), Descending")
 
 ```
 
+I didn't know what qualified as a "good" number for this metric, so it was important that I put this in descending order.  
+
+The players with the top Firstblood/round ratio were:  
+
+1. Huke  
+2. Envoy  
+3. Dylan  
+4. Lucky  
+5. Blazt  
+
+Huke, Envoy, Dylan, and Lucky seem to be common factors when it comes to getting firstbloods in Search and Destroy. Next, I want to look at how each player compares with their overall damage dealt.
 
 
 ## Overall Damage Dealt
 ```{r, fig.height = 25, fig.width = 11}
 
 # player damage dealt OVERALL 2019
-
-# removes all entries where damage is 0; this is almost always a result of data loss
-majors2019 <- sqldf('SELECT * FROM majors2019 WHERE damage_dealt != "0"')
+# created a new dataset for plotting damage_dealt
 playerDamage <- sqldf('SELECT player, damage_dealt FROM majors2019 WHERE damage_dealt != "0"')
 
-ggplot(playerDamage, aes(x = reorder(player, damage_dealt), y = damage_dealt)) + geom_boxplot() + coord_flip(ylim = c(0, 10000)) + labs(y = "Damage Dealt", x = "Player", subtitle = "OVERALL Player Damage Dealt, 2019 Season (BO4), Descending")
+ggplot(playerDamage, aes(x = reorder(player, damage_dealt), y = damage_dealt)) + geom_boxplot() + coord_flip(ylim = c(0, 10000)) + labs(y = "Damage Dealt", x = "Player", title = "OVERALL Player Damage Dealt, 2019 Season (BO4), Descending")
 
 ```
 
+From the above plot, we can see that the top performers damage wise were:  
+
+1. Temp  
+2. Slasher  
+3. Octane  
+4. Dashy  
+5. Envoy  
+
+The lowest damage was put out by:  
+
+1. Profeezy  
+2. Natshay  
+3. Knight  
+4. Diabolic  
+5. Zeeked  
+
+Once again, there are common factors between the highest performers and the lowest performers. It is also worth noting that every player in the top 5 are still competing to this day, whereas I have never heard of any of the bottom 5. Next, I will look at player's overall score per minute.
 
 
-## Overall Score/Min (spm)
+## Overall Score/Min (SPM)
+This is a metric that has always been a part of Call of Duty, but as an average player, I never really look at it. I want to see how this statistic applies to professionals.
 ```{r, fig.height = 25, fig.width = 11}
 
 # Overall score per minute for 2019 season
 
-ggplot(majors2019, aes(x = reorder(player, player_spm), y = player_spm)) + geom_boxplot() + coord_flip(ylim = c(0, 675)) + labs(y = "Score per minute", x = "Player", subtitle = "OVERALL Player Score per minute, 2019 Season (BO4), Descending")
+ggplot(majors2019, aes(x = reorder(player, player_spm), y = player_spm)) + geom_boxplot() + coord_flip(ylim = c(0, 675)) + labs(y = "Score per minute", x = "Player", title = "OVERALL Player Score per minute, 2019 Season (BO4), Descending")
 
 ```
 
+The players with the highest SPM were:  
+
+1. Dylan  
+2. Envoy  
+3. Octane  
+4. Dashy  
+5. Huke  
+
+The players with the lowest SPM were:  
+
+1. Knight  
+2. Bance  
+3. Wailers  
+4. JKap  
+5. MethodZsick
+
+What surprised me about this plot was to see Bance and JKap in the bottom 5. Bance is still considered a top player to this day and JKap has been a Call of Duty figurehead for years. On the other hand, the common names at the top were, once again, at the top. Next, I will look at each players' number of wins throughout the year.
 
 
 ## Number of Wins
@@ -432,69 +586,137 @@ ggplot(majors2019, aes(x = reorder(player, player_spm), y = player_spm)) + geom_
 playerwins <- sqldf('SELECT player, win FROM majors2019 WHERE win == "1"') # selects all the wins for each player
 playerwins <- playerwins %>% count(player) # counts the number of wins per player
 
-ggplot(playerwins, aes(x = reorder(player, n), y = n)) + geom_bar(stat = 'identity') + coord_flip() + labs(y = "Number of Wins", x = "Player", subtitle = "OVERALL Number of Wins per Player, 2019 Season (BO4), Descending")
+ggplot(playerwins, aes(x = reorder(player, n), y = n)) + geom_bar(stat = 'identity', fill = "lightblue", color = "white") + coord_flip() + labs(y = "Number of Wins", x = "Player", title = "OVERALL Number of Wins per Player, 2019 Season (BO4), Descending")
 
 ```
 
-The top 4 players with the most amount of wins in the season are Slasher, Octane, Kenny, and Enable. The interesting part about this is that all of these players were on the same team, 100 Thieves. They all tied with 116 wins during the season. 
+The top 4 players with the most amount of wins in the season are Slasher, Octane, Kenny, and Enable. The interesting part about this is that all of these players were on the same team, 100 Thieves. They all tied with 116 wins during the season. They are followed closely by Priestahh, who was their fifth teammate. He likely had to sit out of a few matches, or he got picked up shortly after the start of the season. Next, I will look at the distribution of wins.
 
-
+## Win Distribution
 ```{r}
 
 playerwins %>%
-  ggplot(aes(x = n)) + geom_histogram(binwidth = 15, color = "black", fill = "white")
+  ggplot(aes(x = n)) + geom_histogram(binwidth = 15, color = "black", fill = "lightblue")
 
 ```
 
-The number of wins appears to follow a normal distribution. The left side of the histogram appears to be slightly more populated, but I hypothesize that this is due to players that didn't play for the whole season.
+The number of wins appears to follow a normal distribution, with the median being about 60 wins. The top players had around 100-116 wins.
+
+## Wins vs. Statistics
+In order to plot the number of wins versus each stat, I will be making individual datasets as I go along. I feel that this section will be useful in determining possible strong indicators for a win or a loss. First, I will begin by plotting the number of wins vs. overall K/D.
+
+### Number of Wins vs. Overall K/D
+```{r}
+playerkds <- sqldf('SELECT player, k_d FROM majors2019')
+playerkds <- aggregate(playerkds$k_d, list(playerkds$player), FUN=mean)
+kd_wins <- cbind(playerkds, playerwins)
 
 
+ggplot(kd_wins, aes(x = x, y = n)) + 
+  geom_point() + 
+  geom_smooth(method = lm) + 
+  labs(title = "Wins vs. Overall K/D", x = "Overall K/D", y = "Number of Wins")
+```
+
+The above plot shows that there is a positive correlation between a player's overall K/D and the number of wins that they have. This might indicate that K/D is a good predictor for a win.
+
+### Number of Wins vs. Firstbloods
+```{r}
+playerfb <- sqldf('SELECT player, snd_firstbloods FROM majors2019')
+playerfb <- aggregate(playerfb$snd_firstbloods, list(playerfb$player), FUN=mean)
+fb_wins <- cbind(playerfb, playerwins)
 
 
+ggplot(fb_wins, aes(x = x, y = n)) + 
+  geom_point() + 
+  geom_smooth(method = lm) + 
+  labs(title = "Wins vs. Firstblood Average", x = "Average Firstbloods per Game", y = "Number of Wins")
+```
 
------------------------------------------------------------------------
+Again, there appears to be a positive correlation between the two variables, but it definitely weaker than with K/D. Nevertheless, firstbloods should make for a decent indicator of a win or loss.
+
+### Number of Wins vs. Damage
+```{r}
+playerdamage <- sqldf('SELECT player, damage_dealt FROM majors2019')
+playerdamage <- aggregate(playerdamage$damage_dealt, list(playerdamage$player), FUN=mean)
+damage_wins <- cbind(playerdamage, playerwins)
 
 
+ggplot(damage_wins, aes(x = x, y = n)) + 
+  geom_point() + 
+  geom_smooth(method = lm) + 
+  labs(title = "Wins vs. Damage Dealt", x = "Average Damage per Game", y = "Number of Wins")
+```
+
+There also appears to be a positive correlation with the number of damage per game and the amount of wins a player has. Damage will likely make for a good predictor of a win or a loss.
+
+### Number of Wins vs. Score per Minute
+```{r}
+playerspm <- sqldf('SELECT player, player_spm FROM majors2019')
+playerspm <- aggregate(playerspm$player_spm, list(playerspm$player), FUN=mean)
+spm_wins <- cbind(playerspm, playerwins)
 
 
+ggplot(spm_wins, aes(x = x, y = n)) + 
+  geom_point() + 
+  geom_smooth(method = lm) + 
+  labs(title = "Wins vs. Score per Minute", x = "Average SPM per Game", y = "Number of Wins")
+```
+
+Score per minute also has a positive correlation with the number of wins. Like all the others, this appears to be a decent predictor moving forward.
+
+## EDA Wrap
+While there are definitely more metrics to investigate, I believe that my data analysis has provided me with a solid understanding of the dataset and an idea of what to expect in the later parts of my research. Next, I will move on to the exciting part: model building.
+
+---
+
+# Model Building
+Because there are multiple different game modes that I am trying to predict, I must fit models to each one. This is the reason that there are so many models below. They are essentially the same thing, but their recipes are different to accommodate new predictor variables and remove unnecessary ones. I will begin with Hardpoint, then move to Search and Destroy, and then wrap up with Control. To reiterate, my goal is to try and predict whether an individual player will win or lose a game based on their statistics in the given game.
+
+---
 
 # Models: Hardpoint
-I will be trying to predict whether an individual player will win or lose a game based on his statistics in the given game.
 
 ## Splitting Data:
 Here, I am splitting the Hardpoint data with 80% training and 20% testing. The data is stratified on the "win" variable.
-
 ```{r}
-
-hp2019_wl <- hp2019
 
 set.seed(3068)
 
-hp2019_wlsplit <- hp2019_wl %>%
+hp2019_split <- hp2019 %>%
   initial_split(prop = 0.8, strata = "win")
 
-hp2019_train <- training(hp2019_wlsplit)
-hp2019_test <- testing(hp2019_wlsplit)
+hp2019_train <- training(hp2019_split)
+hp2019_test <- testing(hp2019_split)
 
 ```
 
-Below is the head of the training data; as well as the dimensions for the training and the testing data. There is also the distribution for the number of wins.
+The few following lines of code are just to ensure that my data split correctly and that everything is looking good to proceed.
+
+Head of dataset:
 ```{r}
-
 head(hp2019_train)
+```
 
+Training dataset dimensions:
+```{r}
 dim(hp2019_train)
+```
+
+Testing dataset dimensions:
+```{r}
 dim(hp2019_test)
+```
 
+Distribution for the number of wins in the training set:
+```{r}
 prop.table(table(hp2019_train$win))
-
 ```
 
 ---
 
 ## Creating a recipe and folding:
 To begin with my Hardpoint models, I made a recipe that contained all of my predictor variables. I then normalized all of my predictor variables.
-
 ```{r}
 
 hp_recipe <- recipe(win ~ k_d + assists + damage_dealt + 
@@ -515,6 +737,7 @@ hp_train_folds <- vfold_cv(hp2019_train, v = 10, repeats = 5)
 --------------
 
 ## Model 1: Decision Tree
+In order to create the decision tree, I used the following steps:
 
 Creating a general decision tree specification using rpart:
 ```{r}
@@ -627,7 +850,8 @@ hp_tuned_dt_accuracy
 
 ```
 
-As we can see, the final accuracy for the tuned model was slightly higher with an estimate of 0.7321881, compared to that of the untuned model with an estimate of 0.7203605.
+
+As we can see, the final accuracy for the tuned model was slightly higher with an estimate of 0.756, compared to that of the untuned model with an estimate of 0.720.
 
 
 
@@ -652,7 +876,7 @@ hp_rf_workflow <- workflow() %>%
 
 ```
 
-Next, I set up parameters for the grid that I was going to make. The parameters were set the Hardpoint random forest model and the mtry range was set from 1 to 7. This mtry limit was set slightly below the maximum number of predictors.
+Next, I set up parameters for the grid that I was going to make. The parameters were set the Hardpoint random forest model and the mtry range was set from 2 to 10. This mtry limit was set slightly below the maximum number of predictors.
 ```{r}
 
 hp_rf_parameters <- hardhat::extract_parameter_set_dials(hp_rf_model) %>%
@@ -727,12 +951,17 @@ hp_log_fit_train <- fit(hp_log_wkflow, hp2019_train)
 
 Assessing model performance with the training data:
 ```{r}
-
 predict(hp_log_fit_train, new_data = hp2019_train, type = "prob")
+```
 
+Confusion matrix:
+```{r}
 augment(hp_log_fit_train, new_data = hp2019_train) %>%
   conf_mat(truth = win, estimate = .pred_class)
+```
 
+Another visualization of the confusion matrix:
+```{r}
 augment(hp_log_fit_train, new_data = hp2019_train) %>%
   conf_mat(truth = win, estimate = .pred_class) %>%
   autoplot(type = "heatmap")
@@ -747,6 +976,7 @@ hp_log_reg_accuracy <- augment(hp_log_fit_train, new_data = hp2019_train) %>%
 hp_log_reg_accuracy
 
 ```
+
 The accuracy with the training data was about 0.749, which is roughly the same as the accuracy with the folded data.
 
 
@@ -754,6 +984,8 @@ The accuracy with the training data was about 0.749, which is roughly the same a
 
 
 ## Model 4: K Nearest Neighbors
+
+Just like all of the previous models, I will follow a similar pathway. The steps are as follows:
 
 Setting up the model. I will be tuning "neighbors."
 ```{r}
@@ -796,7 +1028,7 @@ Testing the accuracy of the model:
 hp_knn_tuned_accuracy <- show_best(hp_knn_tune, metric = "accuracy")
 hp_knn_tuned_accuracy
 ```
-As we can see, the model performs at its best with 15 neighbors, resulting in an accuracy of 0.7094363.
+As we can see, the model performs at its best with 15 neighbors, resulting in an accuracy of 0.709.
 
 
 ----------
@@ -813,35 +1045,15 @@ hp_accuracies
 
 ```
 
+The first number is the decision tree, followed by the random forest, logistic regression, and k-th nearest neighbor model. 
+
 Our most accurate model was the decision tree with an accuracy of 0.755, followed by logistic regression's 0.750, random forest's 0.744, and k-th nearest neighbor's 0.710.
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 
 
 ----------------------------------------------------------------------------
 
 
 # Models: Search and Destroy
-I will be trying to predict whether an individual player will win or lose a game based on his statistics in the given game.
 
 ## Splitting Data:
 Here, I am splitting the Search and Destroy data with 80% training and 20% testing. The data is stratified on the "win" variable.
@@ -858,16 +1070,26 @@ snd2019_test <- testing(snd2019_split)
 
 ```
 
-Below is the head of the training data; as well as the dimensions for the training and the testing data. There is also the distribution for the number of wins.
+The few following lines of code are just to ensure that my data split correctly and that everything is looking good to proceed.
+
+Head of the training set:
 ```{r}
-
 head(snd2019_train)
+```
 
+Dimensions of the training set:
+```{r}
 dim(snd2019_train)
+```
+
+Dimensions of the testing set:
+```{r}
 dim(snd2019_test)
+```
 
+Distribution of wins for the training set:
+```{r}
 prop.table(table(snd2019_train$win))
-
 ```
 
 ---
@@ -1009,7 +1231,7 @@ snd_tuned_dt_accuracy
 
 ```
 
-As we can see, the final accuracy for the tuned model was slightly higher with an estimate of 0.7416697, compared to that of the untuned model with an estimate of 0.7001075.
+As we can see, the final accuracy for the tuned model was slightly higher with an estimate of 0.742, compared to that of the untuned model with an estimate of 0.700.
 
 
 
@@ -1071,7 +1293,7 @@ snd_rf_tuned_accuracy[1,5]
 
 ```
 
-We had the highest accuracy of 0.7091295 with a minimum node size of 40 and an mtry of 10.
+We had the highest accuracy of 0.709 with a minimum node size of 40 and an mtry of 10.
 
 ----------
 
@@ -1109,16 +1331,20 @@ snd_log_fit_train <- fit(snd_log_wkflow, snd2019_train)
 
 Assessing model performance with the training data:
 ```{r}
-
 predict(snd_log_fit_train, new_data = snd2019_train, type = "prob")
+```
 
+Confusion matrix:
+```{r}
 augment(snd_log_fit_train, new_data = snd2019_train) %>%
   conf_mat(truth = win, estimate = .pred_class)
+```
 
+Another visualization of confusion matrix:
+```{r}
 augment(snd_log_fit_train, new_data = snd2019_train) %>%
   conf_mat(truth = win, estimate = .pred_class) %>%
   autoplot(type = "heatmap")
-
 ```
 
 Checking accuracy with the training data:
@@ -1130,12 +1356,14 @@ snd_log_reg_accuracy
 
 ```
 
-
+The final accuracy that we got was 0.738, which was slightly higher than the accuracy of 0.732 on the folded data.
 
 -----------
 
 
 ## Model 4: K Nearest Neighbors
+
+Just like all of the previous models, I will follow a similar pathway. The steps are as follows:
 
 Setting up the model. I will be tuning "neighbors."
 ```{r}
@@ -1170,6 +1398,7 @@ Plotting the model:
 ```{r}
 autoplot(snd_knn_tune, metric = "accuracy")
 ```
+
 This plot shows us that as the number of neighbors increases, there is also an increase in accuracy.
 
 Testing the accuracy of the model:
@@ -1177,6 +1406,7 @@ Testing the accuracy of the model:
 snd_knn_tuned_accuracy <- show_best(snd_knn_tune, metric = "accuracy")
 snd_knn_tuned_accuracy
 ```
+
 As we can see, the model performs at its best with 15 neighbors, resulting in an accuracy of 0.6188415.
 
 
@@ -1194,14 +1424,15 @@ snd_accuracies
 
 ```
 
-As we can see from this, the decision tree appears to have the highest accuracy.
+The first number is the decision tree, followed by the random forest, logistic regression, and k-th nearest neighbor model. 
+
+As we can see from this, the decision tree appears to have the highest accuracy with 0.742. This is followed by logistic regression with 0.738, random forest with 0.709, and k-th nearest neighbors with 0.619.
 
 
 ----------------------------------------------------------------------------
 
 
 # Models: Control
-I will be trying to predict whether an individual player will win or lose a game based on his statistics in the given game.
 
 ## Splitting Data:
 Here, I am splitting the Search and Destroy data with 80% training and 20% testing. The data is stratified on the "win" variable.
@@ -1218,16 +1449,26 @@ control2019_test <- testing(control2019_split)
 
 ```
 
-Below is the head of the training data; as well as the dimensions for the training and the testing data. There is also the distribution for the number of wins.
+The few following lines of code are just to ensure that my data split correctly and that everything is looking good to proceed.
+
+Head of train set:
 ```{r}
-
 head(control2019_train)
+```
 
+Dimensions of train set:
+```{r}
 dim(control2019_train)
+```
+
+Dimensions of test set:
+```{r}
 dim(control2019_test)
+```
 
+Win distrbition of train data:
+```{r}
 prop.table(table(control2019_train$win))
-
 ```
 
 ---
@@ -1336,6 +1577,8 @@ Plotting our model, which shows what cost-complexity produces the highest accura
 autoplot(control_rf_tune)
 
 ```
+
+As we can see, the accuracy and ROC AUC tends to decrease as the cost-complexity parameter increases.
 
 Selecting the best performing value and finalizing the workflow:
 ```{r}
@@ -1465,16 +1708,20 @@ control_log_fit_train <- fit(control_log_wkflow, control2019_train)
 
 Assessing model performance with the training data:
 ```{r}
-
 predict(control_log_fit_train, new_data = control2019_train, type = "prob")
+```
 
+Confusion matrix:
+```{r}
 augment(control_log_fit_train, new_data = control2019_train) %>%
   conf_mat(truth = win, estimate = .pred_class)
+```
 
+Another visualization of the confusion matrix:
+```{r}
 augment(control_log_fit_train, new_data = control2019_train) %>%
   conf_mat(truth = win, estimate = .pred_class) %>%
   autoplot(type = "heatmap")
-
 ```
 
 Checking accuracy with the training data:
@@ -1486,13 +1733,15 @@ control_log_reg_accuracy
 
 ```
 
-The final model had an accuracy of the 
+The final model had an accuracy of the 0.770, which was slightly higher than the folded data accuracy of 0.767.
 
 
 -----------
 
 
 ## Model 4: K Nearest Neighbors
+
+Just like all of the previous models, I will follow a similar pathway. The steps are as follows:
 
 Setting up the model. I will be tuning "neighbors."
 ```{r}
@@ -1527,6 +1776,7 @@ Plotting the model:
 ```{r}
 autoplot(control_knn_tune, metric = "accuracy")
 ```
+
 This plot shows us that as the number of neighbors increases, there is also an increase in accuracy.
 
 Testing the accuracy of the model:
@@ -1534,7 +1784,8 @@ Testing the accuracy of the model:
 control_knn_tuned_accuracy <- show_best(control_knn_tune, metric = "accuracy")
 control_knn_tuned_accuracy
 ```
-As we can see, the model performs at its best with 15 neighbors, resulting in an accuracy of 0.6188415.
+
+As we can see, the model performs at its best with 15 neighbors, resulting in an accuracy of 0.735.
 
 
 ----------
@@ -1551,11 +1802,11 @@ control_accuracies
 
 ```
 
-As we can see from this, the decision tree appears to have the highest accuracy.
+The first number is the decision tree, followed by the random forest, logistic regression, and k-th nearest neighbor model. 
 
+As we can see from this, the decision tree has the highest accuracy of 0.827. Logistic regression follows with 0.770, random forest with 0.750, and k-th nearest neighbor with 0.735.
 
-
-
+I assume that Control's models are much more accurate than the other two modes because kills are crucial to how Control plays. Thus, K/D is probably even more important to the models.
 
 
 ---------------
@@ -1592,7 +1843,7 @@ snd_model_test %>%
   snd_metric(truth = win, estimate = .pred_class)
 ```
 
-The final accuracy for Search and Destroy test data was 0.697. This is less than what we got on our train data, but is roughly the same.
+The final accuracy for Search and Destroy test data was 0.720. This is less than what we got on our train data, but is roughly the same.
 
 ## Control
 Next, I will fit the Search and Destroy test data.
@@ -1609,14 +1860,13 @@ control_model_test %>%
 
 The final accuracy for Control test data was 0.729. This is much less than what we got on our train data, where the accuracy was 0.827.
 
-## Discussion
-I expect that most of my models had lower accuracy for my test data compared to the train data because of overfitting. I had a feeling that this would happen since the final decision trees were much more complex than the ones before they were tuned. Regardless, I am happy with an accuracy of 0.70 for each model. For a game that is largely a team effort, being able to predict a win with 0.70 by only looking at one player's statistics is not too bad.
-
 # Attempting to Predict the COD Champs Final
 The COD Champs tournament is the largest tournament of the year. During Black Ops 4, the two teams that competed in the grand finals were eUnited and 100 Thieves. I will be using my models to try and predict the winner of this grand finals.
 
 ## Map 1: Hardpoint
 First, I will predict the first Hardpoint map. I created a dataframe which only contained the data from the first map.
+
+The following printed dataframes will show whether a player is predicted to win (1) or lose (0) and what team they are one.
 
 ```{r}
 
@@ -1634,7 +1884,7 @@ Even though Octane's and Slasher's statistics were individually adequate for the
 
 In reality, eUnited did win the first map 250-126! So far, so good.
 
-**My prediction: 1-0 eUnited**
+**My prediction: 1-0 eUnited**  
 **Reality: 1-0 eUnited**
 
 ## Map 2: Search and Destroy
@@ -1649,11 +1899,11 @@ map2_snd_prediction <- predict(snd_class_tree_final_fit, map2_snd) %>%
 map2_snd_prediction
 
 ```
-My model predicted that Priestahh would win from 100 Thieves, and that Abezy and Simp would win from eUnited. Based on the majority, I would predict that eUnited would win the second map.
+My model predicted that Priestahh and Enable would win from 100 Thieves, and that Abezy and Simp would win from eUnited. This is an apparent flaw in my approach of determining an overall winner, as this in theory should be a tie. For the sake of extending the series, let's just say that 100 Thieves wins. Thus, **I would predict that 100 Thieves would win the second map.**
 
 In reality, 100 Thieves won the second map 6-3.
 
-**My prediction: 2-0 eUnited**
+**My prediction: 1-1 Tied**  
 **Reality: 1-1 Tied**
 
 ## Map 3: Control
@@ -1669,11 +1919,11 @@ map3_control_prediction
 
 ```
 
-My model predicted that Kenny, Octane, and Priestahh would win from 100 Thieves, and only Abezy would win from eUnited. Thus, I would predict that 100 Thieves would win this match.
+My model predicted that Kenny, Octane, and Priestahh would win from 100 Thieves, and only Abezy would win from eUnited. Thus, **I would predict that 100 Thieves would win this match.**
 
 In reality, 100 Thieves did win the third map, 3-1! Another success, phew.
 
-**My prediction: 2-1 eUnited**
+**My prediction: 2-1 100 Thieves**  
 **Reality: 2-1 100 Thieves**
 
 ## Map 4: Hardpoint 
@@ -1689,15 +1939,15 @@ map4_hp_prediction
 
 ```
 
-My model predicted that Kenny, Octane, and Priestahh would win from 100 Thieves, and that Abezy, Arcitys, and Simp would win from eUnited. This is an apparent flaw in my approach of determining an overall winner, as this in theory should be a tie. For the sake of reaching map 5, the final map that decides the tournament, let's just say that 100 Thieves wins.
+My model predicted that Kenny, Octane, and Priestahh would win from 100 Thieves, and that Abezy, Arcitys, and Simp would win from eUnited. Again, this is an apparent flaw in my methodology. For the sake of extending the series once again, **I'll predict that eUnited will win Map 4.**
 
-In reality, eUnited wins map 4 250-219, but again, we will predict otherwise just for the sake of moving forward.
+In reality, eUnited wins map 4 250-219.
 
-**My prediction: 2-2 Tie**
+**My prediction: 2-2 Tie**  
 **Reality: 2-2 Tie**
 
 ## Map 5: Search and Destroy
-This is what is all comes down to! My model has gotten us to this final map! Albeit, through a different path. Lastly, I will predict the winner of the final Search and Destroy to determine the winner of the whole event.
+This is what is all comes down to! My model has gotten us to this final map! (Albeit, through a different path.) Lastly, I will predict the winner of the final Search and Destroy to determine the winner of the whole event.
 
 ```{r}
 
@@ -1709,7 +1959,7 @@ map5_snd_prediction
 
 ```
 
-My model predicted that nobody on 100 Thieves would win, and that Abezy, Arcitys, Clayster, and Prestinni would win from eUnited. Thus, eUnited is my overall predicted winner!
+My model predicted that Slasher on 100 Thieves would win, and that Abezy, Arcitys, Clayster, and Prestinni would win from eUnited. Thus, **eUnited is my overall predicted winner!**
 
 In reality, eUnited did win the final map 6-4! My model was correct in the end!
 
@@ -1733,7 +1983,7 @@ One thing that I immediately noticed was the massive importance of Kill/Death (K
 Another thing that I noticed was how unimportant other metrics were. Some metrics that I thought would be important, weren't. However, I would be interested in seeing how some of these metrics might be weighted differently if you approach it from a team perspective.
 
 ## Future Research
-In the future, I believe that a more effective approach for predicting a win or a loss would be by looking at a team's statistics as a whole. You can take this even further by ranking each team using their past statistics and using these to predict future matches; an unsupervised learning experiment. 
+In the future, I believe that a more effective approach for predicting a win or a loss would be by looking at a team's statistics as a whole. You can take this even further by ranking each team using their past statistics and using these to predict future matches; an unsupervised learning experiment. Additionally, by working with team data, it will clear up the issues that I ran into when predicting the Champs Grand Finals. My thinking was inherently wrong from the start and I didn't even realize until it came time to predict everything.
 
 Additionally, the data that I used for this research was from the CWL in 2018. Since then, the CWL has transformed into the CDL (Call of Duty League), with more focus being placed on data. There are more predictors to look at that just weren't available for the CWL data. Future research should use CDL data as there are some interesting parameters, such as untraded kills, that might provide some more predictive power. I also think it would be interesting to look at interactions between teams and maps, and try and use this to aid in predicting a winner.
 
