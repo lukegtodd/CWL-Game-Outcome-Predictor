@@ -4,7 +4,9 @@ author: "Luke Todd"
 date: "6/9/2022"
 output: 
   html_document:
-   code_folding: hide
+    theme: journal
+    toc: true
+    code_folding: hide
 ---
 
 ```{r setup, include=FALSE, message = FALSE}
@@ -164,16 +166,23 @@ In order to determine a win for a game, we will need to address Hardpoint, Searc
 * `fb_round_ratio` — 'snd_firstbloods'/'snd_rounds' 
 * `bomb_sneak_defuses` — sneak defuses are often in pivotal rounds  
 * `bomb_plants` — good indicator of role  
-* `bomb_defuses` — good indicator of role
+* `bomb_defuses` — good indicator of role  
+* `snd_rounds` — used to calculate fb_round_ratio  
+* `snd_firstbloods` — used to calculate fb_round_ratio; also used in EDA  
+* `snd_1_kill_round` — this keeps count of how many rounds there were where the given player got 1 kill  
+* `snd_2_kill_round` — this keeps count of how many rounds there were where the given player got 2 kills  
+* `snd_3_kill_round` — this keeps count of how many rounds there were where the given player got 3 kills  
+* `snd_4_kill_round` — this keeps count of how many rounds there were where the given player got 4 kills  
+* `fb_avg` — this column has the firstblood average for each player; ultimately was only used in the EDA  
 
 
 
 **Control:**  
 
-* `end_time` — helpful for organizing games chronologically
+* `end_time` — helpful for organizing games chronologically  
 * `match_id` — helpful for getting rid of missing data  
 * `win` — '1' for a win and '0' for a loss  
-* `team` — player's corresponding team
+* `team` — player's corresponding team  
 * `player` — what player does the data correspond to  
 * `mode` — game mode  
 * `k_d` — kill/death ratio; used to show overall impact on the map  
@@ -269,7 +278,7 @@ Below is a subset of all the Hardpoint data for the season. I used the "sqldf" p
 ```{r}
 
 # all 2019 hardpoint data
-hp2019 <- sqldf('SELECT player, k_d, role, win, kills, deaths, x, assists, damage_dealt, player_spm, hill_time_s, hill_captures, hill_defends, x2_piece, x3_piece, x4_piece FROM majors2019 WHERE mode == "Hardpoint"')
+hp2019 <- sqldf('SELECT player, k_d, role, win, assists, damage_dealt, player_spm, hill_time_s, hill_captures, hill_defends, x2_piece, x3_piece, x4_piece FROM majors2019 WHERE mode == "Hardpoint"')
 hp2019 <- hp2019[order(hp2019$player),]
 
 ```

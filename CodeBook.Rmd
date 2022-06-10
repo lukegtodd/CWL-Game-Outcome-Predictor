@@ -1,0 +1,93 @@
+---
+title: "PSTAT 131 Final Project Code Book"
+author: "Luke Todd"
+date: "6/9/2022"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+**This file is the code book for my final project. It outlines all of the variables that will be used in my project. These are also explained in the document itself, but this file was act as another, more accessible resource.**
+
+In order to determine a win for a game, we needed to address Hardpoint, Search and Destroy, and the Control separately. Each of these gamemodes have different parameters, which are listed below.
+
+**Hardpoint:**  
+
+* `end_time` — helpful for organizing games chronologically
+* `match_id` — helpful for getting rid of missing data  
+* `win` — '1' for a win and '0' for a loss  
+* `team` — player's corresponding team
+* `player` — what player does the data correspond to  
+* `mode` — game mode  
+* `k_d` — kill/death ratio; used to show overall impact on the map  
+* `assists` — in addition to k/d, assists show overall support on the map  
+* `role` — a role is determined for each player depending on their most common gun throughout the year  
+* `damage_dealt` — total damage done in the map  
+* `player_spm` — score per minute  
+* `x2_piece` — number of two-pieces (two kills in quick succession)  
+* `x3_piece` — number of three-pieces (three kills in quick succession)  
+* `x4_piece` — number of four-pieces (four kills in quick succession)  
+* `hill_time_s` — hill time measured in seconds  
+* `hill_captures` — shows activity on the map  
+* `hill_defends` — shows activity on the map
+
+
+**Search and Destroy:**  
+
+* `end_time` — helpful for organizing games chronologically
+* `match_id` — helpful for getting rid of missing data  
+* `win` — '1' for a win and '0' for a loss  
+* `team` — player's corresponding team
+* `player` — what player does the data correspond to  
+* `mode` — game mode  
+* `k_d` — kill/death ratio; used to show overall impact on the map  
+* `assists` — in addition to k/d, assists show overall support on the map  
+* `role` — a role is determined for each player depending on their most common gun throughout the year; the following roles are SMG (denoted as 1), Flex (denoted as 2), and Main AR (denoted as 3)  
+* `damage_dealt` — total damage done in the map  
+* `player_spm` — score per minute  
+* `x2_piece` — number of two-pieces (two kills in quick succession)  
+* `x3_piece` — number of three-pieces (three kills in quick succession)  
+* `x4_piece` — number of four-pieces (four kills in quick succession)  
+* `fb_round_ratio` — 'snd_firstbloods'/'snd_rounds' 
+* `bomb_sneak_defuses` — sneak defuses are often in pivotal rounds  
+* `bomb_plants` — good indicator of role  
+* `bomb_defuses` — good indicator of role  
+* `snd_rounds` — used to calculate fb_round_ratio
+* `snd_firstbloods` — used to calculate fb_round_ratio; also used in EDA
+* `snd_1_kill_round` — this keeps count of how many rounds there were where the given player got 1 kill  
+* `snd_2_kill_round` — this keeps count of how many rounds there were where the given player got 2 kills  
+* `snd_3_kill_round` — this keeps count of how many rounds there were where the given player got 3 kills  
+* `snd_4_kill_round` — this keeps count of how many rounds there were where the given player got 4 kills  
+* `fb_avg` — this column has the firstblood average for each player; ultimately was only used in the EDA  
+
+**Control:**  
+
+* `end_time` — helpful for organizing games chronologically
+* `match_id` — helpful for getting rid of missing data  
+* `win` — '1' for a win and '0' for a loss  
+* `team` — player's corresponding team
+* `player` — what player does the data correspond to  
+* `mode` — game mode  
+* `k_d` — kill/death ratio; used to show overall impact on the map  
+* `assists` — in addition to k/d, assists show overall support on the map  
+* `role` — a role is determined for each player depending on their most common gun throughout the year  
+* `damage_dealt` — total damage done in the map  
+* `player_spm` — score per minute  
+* `x2_piece` — number of two-pieces (two kills in quick succession)  
+* `x3_piece` — number of three-pieces (three kills in quick succession)  
+* `x4_piece` — number of four-pieces (four kills in quick succession)  
+* `ctrl_firstbloods` — first kill in a round of control  
+* `ctrl_firstdeaths` — first death in a round of control  
+* `ctrl_captures` — number of captures in a control game  
+
+---
+
+
+**Data Citation:**
+Again, all data was provided by the Call of Duty World League. All data was made public on GitHub at the following link:
+
+https://github.com/Activision/cwl-data 
+
+
